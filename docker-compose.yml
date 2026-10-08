@@ -1,0 +1,38 @@
+﻿services:
+  mysql:
+    image: mysql:8
+    container_name: price-tracker-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass_change_me
+      MYSQL_DATABASE: price_tracker
+      MYSQL_USER: price_user
+      MYSQL_PASSWORD: price_pass_change_me
+    volumes:
+      - price_tracker_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass_change_me"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7-alpine
+    container_name: price-tracker-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - price_tracker_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  price_tracker_mysql_data:
+  price_tracker_redis_data:

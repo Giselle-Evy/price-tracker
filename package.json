@@ -1,0 +1,17 @@
+﻿{
+  "name": "price-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma web de web scraping, monitoreo e historial de precios",
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "build": "pnpm --recursive --filter \"./apps/*\" build",
+    "lint": "pnpm --recursive lint",
+    "test": "pnpm --recursive test"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@12.10.1"
+}

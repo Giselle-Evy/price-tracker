@@ -1,0 +1,48 @@
+﻿# Dependencias
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+.next/
+out/
+
+# Variables de entorno (¡NUNCA subir!)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+logs/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+
+# Prisma
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+
+# Playwright
+apps/worker/.cache/
+apps/worker/playwright-report/
+test-results/
+
+# Docker
+mysql_data/
+redis_data/
+
+# Temporales
+*.tmp
+.cache/
