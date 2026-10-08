@@ -59,14 +59,11 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────
 
 export const me = asyncHandler(async (req: Request, res: Response) => {
-  // El middleware `authenticate` deja el usuario en req.user.
-  // Lo implementaremos en 5.6. Por ahora, si no hay user, error.
-  const user = (req as Request & { user?: { userId: string } }).user;
-
-  if (!user) {
+  // authenticate garantiza que req.user existe.
+  if (!req.user) {
     throw new UnauthorizedError('Not authenticated');
   }
 
-  const profile = await getUserById(user.userId);
+  const profile = await getUserById(req.user.userId);
   res.status(200).json(profile);
 });
