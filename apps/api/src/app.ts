@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { NotFoundError } from './lib/errors.js';
+import { authRouter } from './modules/auth/auth.routes.js';
 
 export function createApp(): Application {
   const app = express();
@@ -33,7 +34,8 @@ export function createApp(): Application {
     });
   });
 
-  // Las rutas de /auth, /configs, /monitors, etc. se añadirán en sub-pasos siguientes.
+  // Rutas
+  app.use('/auth', authRouter);
 
   // Ruta 404 para cualquier ruta no registrada
   app.use((_req, _res, next) => {
