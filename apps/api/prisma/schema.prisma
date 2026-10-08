@@ -1,0 +1,13 @@
+// Prisma schema para Price Tracker
+// Documentación: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Los modelos (tablas) se añaden en el Paso 3.
