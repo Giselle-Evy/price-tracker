@@ -1,68 +1,152 @@
-﻿# Progreso del Proyecto — Price Tracker
+# Progreso del Proyecto — Price Tracker
 
-Historial de fases completadas. Al final de cada fase se añade una sección.
+Historial de fases completadas. Numeración adoptada del Prompt Maestro
+(`docs/PROMPT_MAESTRO.md`), que organiza el proyecto en 20 fases (0 a 19/20).
 
 ---
 
-## FASE 0 — Configuración del entorno
+## Equivalencia con el trabajo previo
+
+Antes de adoptar la numeración del prompt maestro, llamábamos "Fase 0" y
+"Fase 1" a algunos hitos. La correspondencia es:
+
+| Lo que hicimos                          | Fase del prompt maestro        | Estado |
+|-----------------------------------------|--------------------------------|--------|
+| Preparar entorno (Node, pnpm, Docker)   | FASE 0 + parte de FASE 3       | OK     |
+| Crear repo, monorepo, docs              | FASE 2 + FASE 3                | OK     |
+| Scaffold de apps/api                    | FASE 2                         | OK     |
+| Inicializar Prisma y conexión MySQL     | FASE 4 (parcial)               | OK     |
+| Schema Prisma completo                  | FASE 4 (siguiente)             | Pend.  |
+
+A partir de aquí, usamos la numeración del prompt maestro.
+
+---
+
+## FASE 0 — Revisar entorno de desarrollo
 
 **Estado:** COMPLETADA
 **Fecha:** 08/10/2026
 
 ### Objetivo
-Dejar el entorno listo: herramientas instaladas, repo en GitHub, estructura
-base del monorepo creada, MySQL y Redis corriendo en Docker.
+Verificar que todas las herramientas necesarias están instaladas y funcionando.
 
-### Qué se hizo
+### Resultado
+- Node.js v22.14.0
+- pnpm 12.10.1 (instalado durante esta fase)
+- Git 2.49.0
+- Docker Desktop
+- VS Code 1.140.0
+- Cuentas: GitHub
 
-1. Verificación del entorno: Node v22.14.0, Git 2.49.0, VS Code 1.140.0 ya
-   instalados. Se instaló pnpm 12.10.1 (faltaba).
-2. Creación del repositorio en GitHub: https://github.com/Giselle-Evy/price-tracker
-   (público, vacío).
-3. Clonado local en C:\Users\evely\projects\price-tracker
-4. Creación de la estructura monorepo:
-   - apps/web, apps/api, apps/worker
-   - packages/shared
-5. Creación de archivos raíz:
-   - pnpm-workspace.yaml
-   - package.json (raíz, con scripts globales)
-   - .gitignore
-   - .env.example
-   - docker-compose.yml
-   - README.md
-6. Levantado de MySQL 8.0 en Docker (puerto 3307) y Redis 7 (puerto 6380).
-7. Creación del archivo .env real copiando .env.example.
-8. Dos commits pusheados a GitHub:
-   - chore: initial project structure
-   - fix(docker): pin mysql to 8.0 and remove deprecated auth plugin flag
+---
 
-### Decisiones tomadas
+## FASE 1 — Definir arquitectura y alcance técnico
 
-- Monorepo con pnpm workspaces (no front/back separados).
-- MySQL en Docker en puerto 3307, aislado del MySQL nativo (3306).
-- Redis en Docker en puerto 6380.
-- Imagen fijada a mysql:8.0 (no mysql:8, que ahora descarga 8.4 con breaking changes).
-- Volúmenes Docker propios: price_tracker_mysql_data, price_tracker_redis_data.
+**Estado:** COMPLETADA
+**Fecha:** 08/10/2026
 
-### Estado del entorno al cerrar la fase
+### Objetivo
+Documentar stack, arquitectura y decisiones.
 
-- price-tracker-mysql → Up (healthy) en 0.0.0.0:3307->3306/tcp
-- price-tracker-redis → Up (healthy) en 0.0.0.0:6380->6379/tcp
-- Base de datos price_tracker creada y verificada con SHOW DATABASES.
-- Redis responde PONG.
-- Contenedores antiguos del usuario (Nova-db, metabase, backend-container,
-  frontend-container) intactos y apagados.
+### Resultado
+- `docs/ARQUITECTURA.md` creado.
+- `docs/CONTEXTO.md` creado.
+- Stack elegido: React + Node + Express + TypeScript + Prisma + MySQL +
+  Redis + BullMQ + Playwright.
+
+---
+
+## FASE 2 — Estructura de carpetas y scaffolds
+
+**Estado:** COMPLETADA
+**Fecha:** 08/10/2026
+
+### Objetivo
+Crear el monorepo con pnpm workspaces y el scaffold del backend.
+
+### Resultado
+- Estructura `apps/` (web, api, worker) y `packages/` (shared).
+- `pnpm-workspace.yaml` configurado.
+- `package.json` raíz con scripts globales.
+- `apps/api` con:
+  - `package.json` (deps: express, prisma, zod, bcrypt, jwt, helmet, cors).
+  - `tsconfig.json` (strict, ESM, target ES2022).
+  - `.gitignore` local.
+  - Estructura `src/` (config, lib, middleware, modules, services).
+  - `src/index.ts` placeholder.
+- `pnpm install` ejecutado (207 paquetes).
+- `pnpm approve-builds` aprobado para Prisma, bcrypt, esbuild.
 
 ### Incidentes resueltos
+- `package.json` con BOM UTF-8 rompía `tsx`. Se reescribió sin BOM.
+- `tsconfig.json`, `.gitignore`, `src/index.ts` también tenían BOM. Limpiados.
+- Lección: archivos `.json`, `.ts`, `.yaml`, `.prisma` → SIEMPRE desde VS Code.
 
-1. La imagen mysql:8 descargó MySQL 8.4.11, que ya no acepta el flag
-   --default-authentication-plugin=mysql_native_password. El contenedor
-   entraba en bucle de reinicio.
-   Solución: fijar imagen a mysql:8.0 y quitar el flag del command.
+---
 
-### Próximos pasos (Fase 1)
+## FASE 3 — Git, GitHub, Docker, variables de entorno
 
-- Configurar apps/api con package.json, tsconfig.json, dependencias.
-- Inicializar Prisma y escribir el schema completo (8 tablas).
-- Ejecutar la primera migración.
+**Estado:** COMPLETADA
+**Fecha:** 08/10/2026
+
+### Objetivo
+Dejar el proyecto versionado, con Docker y variables de entorno.
+
+### Resultado
+- Repo `https://github.com/Giselle-Evy/price-tracker` (público).
+- `.gitignore` raíz con node_modules, dist, .env, logs, cache.
+- `.env.example` con todas las variables documentadas.
+- `.env` real (ignorado por Git).
+- `docker-compose.yml` con:
+  - `price-tracker-mysql` (MySQL 8.0, puerto 3307).
+  - `price-tracker-redis` (Redis 7, puerto 6380).
+  - Volúmenes propios.
+  - Healthchecks.
+- MySQL healthy, base `price_tracker` creada.
+- Redis healthy, responde PONG.
+
+### Incidentes resueltos
+- `mysql:8` descargó 8.4, que ya no acepta `--default-authentication-plugin`.
+  Solución: fijar a `mysql:8.0` y quitar el flag.
+
+### Commits relevantes
+- `39629ae` chore: initial project structure
+- `59f0f9e` fix(docker): pin mysql to 8.0 and remove deprecated auth plugin flag
+- `f608ae2` docs: add project context, progress and architecture documentation
+- `c583aaf` feat(api): scaffold backend with TypeScript, Express deps and Prisma client
+- `d4a6718` feat(api): initialize Prisma with datasource config
+
+---
+
+## FASE 4 — Base de datos y primeras migraciones
+
+**Estado:** EN CURSO
+**Fecha inicio:** 08/10/2026
+
+### Objetivo
+Diseñar y crear todas las tablas del sistema en MySQL, con sus relaciones.
+
+### Lo hecho hasta ahora
+- `apps/api/prisma/schema.prisma` inicializado con `generator` y `datasource`.
+- `apps/api/.env` copiado para que Prisma lo lea.
+- Conexión a MySQL verificada con `SELECT 1`.
+- Decisiones tomadas:
+  - Ofertas = módulo principal (home = feed de ofertas).
+  - Separar `Product` + `Offer` + `Monitor`.
+  - Sin `Comment` ni `Vote`.
+  - Nombre del proyecto se mantiene `price-tracker`.
+
+### Pendiente
+- Escribir el schema completo con 9 tablas:
+  - User, Product, Offer, ScrapeConfig, ScrapeField, Monitor,
+    ScrapeRun, PriceHistory, Notification.
+- Ejecutar `prisma migrate dev --name init`.
+- Ejecutar `prisma generate`.
 - Verificar con Prisma Studio.
+- Commit y push.
+
+---
+
+## FASE 5 y siguientes — Pendientes
+
+(Fases 5 a 20 según el Prompt Maestro. Se irán documentando al completarse.)
