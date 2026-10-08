@@ -10,4 +10,256 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Los modelos (tablas) se añaden en el Paso 3.
+// ─────────────────────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid()) @db.Char(36)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  name         String?  @db.VarChar(120)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  scrapeConfigs ScrapeConfig[]
+  monitors      Monitor[]
+  notifications Notification[]
+  offers        Offer[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PRODUCTS
+// Entidad canónica del producto. Único por canonicalUrl.
+// ─────────────────────────────────────────────────────────────
+
+model Product {
+  id           String   @id @default(uuid()) @db.Char(36)
+  name         String   @db.VarChar(500)
+  imageUrl     String?  @map("image_url") @db.Text
+  canonicalUrl String   @unique @map("canonical_url") @db.VarChar(768)
+  originalUrl  String   @map("original_url") @db.Text
+  domain       String   @db.VarChar(255)
+  currency     String?  @db.VarChar(8)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  offers   Offer[]
+  monitors Monitor[]
+
+  @@index([domain])
+  @@map("products")
+}
+
+// ─────────────────────────────────────────────────────────────
+// OFFERS
+// Publicaciones de productos (módulo principal).
+// ─────────────────────────────────────────────────────────────
+
+model Offer {
+  id             String   @id @default(uuid()) @db.Char(36)
+  userId         String   @map("user_id") @db.Char(36)
+  productId      String   @map("product_id") @db.Char(36)
+  title          String   @db.VarChar(500)
+  description    String?  @db.Text
+  price          Decimal? @db.Decimal(12, 2)
+  previousPrice  Decimal? @map("previous_price") @db.Decimal(12, 2)
+  url            String   @db.Text
+  sourceType     OfferSourceType @default(manual) @map("source_type")
+  verified       Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([productId])
+  @@index([createdAt])
+  @@map("offers")
+}
+
+enum OfferSourceType {
+  manual
+  scraped
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCRAPE CONFIGS
+// ─────────────────────────────────────────────────────────────
+
+model ScrapeConfig {
+  id           String   @id @default(uuid()) @db.Char(36)
+  userId       String   @map("user_id") @db.Char(36)
+  name         String   @db.VarChar(120)
+  sourceUrl    String   @map("source_url") @db.Text
+  sourceDomain String   @map("source_domain") @db.VarChar(255)
+  status       ScrapeConfigStatus @default(draft)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fields   ScrapeField[]
+  monitors Monitor[]
+
+  @@index([userId, sourceDomain])
+  @@map("scrape_configs")
+}
+
+enum ScrapeConfigStatus {
+  draft
+  active
+  error
+  archived
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCRAPE FIELDS
+// ─────────────────────────────────────────────────────────────
+
+model ScrapeField {
+  id         String   @id @default(uuid()) @db.Char(36)
+  configId   String   @map("config_id") @db.Char(36)
+  label      String   @db.VarChar(80)
+  selector   String   @db.Text
+  attribute  String?  @db.VarChar(80)
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  transform  Json?
+  orderIndex Int      @default(0) @map("order_index")
+
+  config ScrapeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
+  @@map("scrape_fields")
+}
+
+// ─────────────────────────────────────────────────────────────
+// MONITORS
+// Seguimiento de un producto por un usuario.
+// ─────────────────────────────────────────────────────────────
+
+model Monitor {
+  id             String   @id @default(uuid()) @db.Char(36)
+  userId         String   @map("user_id") @db.Char(36)
+  productId      String   @map("product_id") @db.Char(36)
+  configId       String   @map("config_id") @db.Char(36)
+  name           String   @db.VarChar(255)
+  url            String   @db.Text
+  imageUrl       String?  @map("image_url") @db.Text
+  currency       String?  @db.VarChar(8)
+  currentPrice   Decimal? @map("current_price") @db.Decimal(12, 2)
+  previousPrice  Decimal? @map("previous_price") @db.Decimal(12, 2)
+  targetPrice    Decimal? @map("target_price") @db.Decimal(12, 2)
+  status         MonitorStatus @default(pending)
+  frequencyMin   Frequency     @default(m30) @map("frequency_min")
+  alertOnDrop    Boolean  @default(true) @map("alert_on_drop")
+  alertEnabled   Boolean  @default(true) @map("alert_enabled")
+  lastRunAt      DateTime? @map("last_run_at")
+  lastSuccessAt  DateTime? @map("last_success_at")
+  nextRunAt      DateTime? @map("next_run_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  config        ScrapeConfig   @relation(fields: [configId], references: [id])
+  runs          ScrapeRun[]
+  priceHistory  PriceHistory[]
+  notifications Notification[]
+
+  @@index([userId, status])
+  @@index([productId])
+  @@index([nextRunAt])
+  @@map("monitors")
+}
+
+enum MonitorStatus {
+  active
+  paused
+  error
+  pending
+}
+
+enum Frequency {
+  m5
+  m15
+  m30
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCRAPE RUNS
+// ─────────────────────────────────────────────────────────────
+
+model ScrapeRun {
+  id           String   @id @default(uuid()) @db.Char(36)
+  monitorId    String   @map("monitor_id") @db.Char(36)
+  status       ScrapeRunStatus
+  durationMs   Int?     @map("duration_ms")
+  httpStatus   Int?     @map("http_status")
+  errorMessage String?  @map("error_message") @db.Text
+  rawSnapshot  Json?    @map("raw_snapshot")
+  startedAt    DateTime @default(now()) @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+
+  monitor      Monitor        @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  priceHistory PriceHistory[]
+
+  @@index([monitorId, startedAt])
+  @@map("scrape_runs")
+}
+
+enum ScrapeRunStatus {
+  success
+  partial
+  error
+}
+
+// ─────────────────────────────────────────────────────────────
+// PRICE HISTORY
+// ─────────────────────────────────────────────────────────────
+
+model PriceHistory {
+  id         BigInt   @id @default(autoincrement())
+  monitorId  String   @map("monitor_id") @db.Char(36)
+  runId      String?  @map("run_id") @db.Char(36)
+  price      Decimal  @db.Decimal(12, 2)
+  currency   String?  @db.VarChar(8)
+  observedAt DateTime @default(now()) @map("observed_at")
+
+  monitor Monitor    @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  run     ScrapeRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([monitorId, observedAt])
+  @@map("price_history")
+}
+
+// ─────────────────────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @map("user_id") @db.Char(36)
+  monitorId String   @map("monitor_id") @db.Char(36)
+  type      NotificationType
+  oldPrice  Decimal? @map("old_price") @db.Decimal(12, 2)
+  newPrice  Decimal? @map("new_price") @db.Decimal(12, 2)
+  message   String?  @db.Text
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  price_drop
+  target_reached
+  error
+  system
+}
