@@ -50,13 +50,11 @@ export default function RegisterPage() {
       <div className="w-full bg-surface-container-lowest rounded-xl shadow-md p-8 sm:p-10 flex flex-col">
         {/* Header del card */}
         <div className="flex flex-col items-center text-center mb-6">
-          <img
-            src="/Logo.png"
-            alt="Price Tracker"
-            className="w-24 h-24 object-contain mb-2"
-          />
+          <h1 className="text-2xl font-semibold text-on-surface tracking-tight">
+            Price<span className="text-primary-container">Tracker</span>
+          </h1>
 
-          <p className="text-sm text-on-surface-variant mt-0 max-w-md">
+          <p className="text-sm text-on-surface-variant mt-4 max-w-md">
             Crea tu cuenta profesional para comenzar a monitorear precios en tiempo real.
           </p>
         </div>
