@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 
 import MainLayout from './components/layout/MainLayout';
+import AuthLayout from './components/layout/AuthLayout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -13,19 +14,19 @@ import NotFoundPage from './pages/NotFoundPage';
 export default function App() {
   return (
     <Routes>
-      <Route element={<MainLayout />}>
-        {/* Rutas públicas */}
-        <Route path="/" element={<HomePage />} />
+      {/* Rutas de autenticación (layout centrado, sin sidebar) */}
+      <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+      </Route>
 
-        {/* Rutas privadas (protección se añade en 6.6) */}
+      {/* Rutas principales (layout con header + sidebar) */}
+      <Route element={<MainLayout />}>
+        <Route path="/" element={<HomePage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/monitors" element={<MonitorsPage />} />
         <Route path="/builder" element={<BuilderPage />} />
         <Route path="/profile" element={<ProfilePage />} />
-
-        {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
