@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { NotFoundError } from './lib/errors.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { analyzeRouter } from './modules/analyze/analyze.routes.js';
 
 export function createApp(): Application {
   const app = express();
@@ -36,8 +37,9 @@ export function createApp(): Application {
 
   // Rutas
   app.use('/auth', authRouter);
+  app.use('/analyze', analyzeRouter);
 
-  // Ruta 404 para cualquier ruta no registrada
+  // Ruta 404
   app.use((_req, _res, next) => {
     next(new NotFoundError('Route not found'));
   });
