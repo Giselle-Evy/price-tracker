@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { prisma } from './lib/prisma.js';
+import { closeBrowser } from './services/scraper.js';
 
 async function main() {
   // Verificar conexión a la base de datos al arrancar
@@ -20,9 +21,10 @@ async function main() {
   });
 
   // Graceful shutdown
-  const shutdown = async (signal: string) => {
+    const shutdown = async (signal: string) => {
     console.log(`\n${signal} received. Shutting down...`);
     server.close(async () => {
+      await closeBrowser();
       await prisma.$disconnect();
       console.log('✓ Shutdown complete');
       process.exit(0);
