@@ -1,13 +1,324 @@
+import { useState, type FormEvent } from 'react';
+import {
+  Globe,
+  Search,
+  Loader2,
+  AlertCircle,
+  Clock,
+  Server,
+  FileCode,
+  CheckCircle2,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Sparkles,
+} from 'lucide-react';
+
+import { api, type ApiError } from '../lib/api';
+
+type AnalyzeResponse = {
+  url: string;
+  finalUrl: string;
+  html: string;
+  statusCode: number;
+  contentType: string;
+  durationMs: number;
+  method: 'cheerio' | 'playwright';
+  htmlSize: number;
+};
+
 export default function BuilderPage() {
+  const [url, setUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [htmlOpen, setHtmlOpen] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setResult(null);
+    setHtmlOpen(false);
+    setIsLoading(true);
+
+    try {
+      const data = await api.post<AnalyzeResponse>('/analyze', { url });
+      setResult(data);
+    } catch (err) {
+      const apiError = err as ApiError;
+      setError(apiError.error || 'Error al analizar la URL');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function handleClear() {
+    setUrl('');
+    setResult(null);
+    setError(null);
+    setHtmlOpen(false);
+  }
+
+  function handleAnalyzeAnother() {
+    setResult(null);
+    setError(null);
+    setUrl('');
+    setHtmlOpen(false);
+  }
+
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold text-brand-700 mb-4">
-        Constructor de scraping
-      </h1>
-      <p className="text-silver-500">
-        Aquí se analizará una URL, se inspeccionará el HTML y se configurarán
-        los selectores CSS para extraer los campos.
-      </p>
+    <div className="p-8 max-w-5xl mx-auto">
+      {/* Encabezado */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 rounded-lg bg-primary-container">
+            <Sparkles className="w-5 h-5 text-on-primary-container" />
+          </div>
+          <h1 className="text-3xl font-bold text-on-surface">
+            Asistente de importación
+          </h1>
+        </div>
+        <p className="text-on-surface-variant">
+          Pega la URL de un producto. Lo analizaremos para extraer automáticamente
+          su nombre, precio, imagen y más.
+        </p>
+      </div>
+
+      {/* Card de instrucciones (solo si no hay resultado) */}
+      {!result && !isLoading && (
+        <div className="mb-8 bg-surface-container-low rounded-xl border border-outline-variant p-6">
+          <h2 className="text-sm font-semibold text-on-surface mb-3 uppercase tracking-wider">
+            Cómo funciona
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Step number={1} text="Pega la URL del producto" />
+            <Step number={2} text="Analizamos la página" />
+            <Step number={3} text="Ves los datos extraídos" />
+            <Step number={4} text="Los guardás o monitoreás" />
+          </div>
+        </div>
+      )}
+
+      {/* Formulario */}
+      <form onSubmit={handleSubmit} className="mb-6">
+        <div className="flex gap-3">
+          <div className="relative flex items-center flex-1">
+            <Globe className="absolute left-3 w-5 h-5 text-secondary pointer-events-none" />
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://ejemplo.com/producto"
+              required
+              disabled={isLoading}
+              className="w-full pl-10 pr-12 py-3.5 bg-surface-container-lowest text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:outline-none focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all disabled:opacity-60"
+            />
+            {url && !isLoading && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="absolute right-3 p-1.5 rounded-md text-secondary hover:text-on-surface hover:bg-surface-container transition-colors"
+                aria-label="Limpiar URL"
+                title="Limpiar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={isLoading || !url}
+            className="px-6 py-3.5 bg-primary-container hover:bg-primary text-on-primary-container font-semibold text-sm rounded-lg flex items-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analizando...
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4" />
+                Analizar
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
+      {/* Error banner */}
+      {error && (
+        <div className="mb-6 flex items-start gap-3 p-4 rounded-lg bg-error-container text-on-error-container text-sm">
+          <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <strong className="font-semibold block mb-1">
+              No se pudo analizar la URL
+            </strong>
+            <p className="text-sm opacity-90">{error}</p>
+          </div>
+          <button
+            onClick={handleClear}
+            className="p-1 rounded text-on-error-container hover:bg-on-error-container/10 transition-colors"
+            aria-label="Cerrar error"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Estado vacío */}
+      {!isLoading && !error && !result && (
+        <div className="bg-surface-container-lowest rounded-xl border border-dashed border-outline-variant p-12 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-surface-container mb-4">
+            <Globe className="w-8 h-8 text-outline" />
+          </div>
+          <h2 className="text-lg font-semibold text-on-surface mb-2">
+            Esperando una URL
+          </h2>
+          <p className="text-on-surface-variant text-sm max-w-md mx-auto">
+            Pega la URL de un producto en el campo de arriba y pulsa "Analizar" para
+            inspeccionar su contenido.
+          </p>
+        </div>
+      )}
+
+      {/* Resultado */}
+      {result && (
+        <div className="space-y-4">
+          {/* Metadatos */}
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
+            {/* Header del resultado */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant bg-surface-container-low">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-primary-container" />
+                <h2 className="text-sm font-semibold text-on-surface">
+                  Análisis completado
+                </h2>
+              </div>
+              <button
+                onClick={handleAnalyzeAnother}
+                className="text-xs font-medium text-primary-container hover:text-primary transition-colors flex items-center gap-1"
+              >
+                <X className="w-3.5 h-3.5" />
+                Analizar otra URL
+              </button>
+            </div>
+
+            {/* Métricas */}
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <Metric
+                  icon={<Server className="w-4 h-4 text-secondary" />}
+                  label="Status HTTP"
+                  value={result.statusCode}
+                />
+                <Metric
+                  icon={<FileCode className="w-4 h-4 text-secondary" />}
+                  label="Método"
+                  value={result.method.charAt(0).toUpperCase() + result.method.slice(1)}
+                />
+                <Metric
+                  icon={<Clock className="w-4 h-4 text-secondary" />}
+                  label="Duración"
+                  value={`${result.durationMs} ms`}
+                />
+                <Metric
+                  icon={<FileCode className="w-4 h-4 text-secondary" />}
+                  label="Tamaño HTML"
+                  value={`${(result.htmlSize / 1024).toFixed(1)} KB`}
+                />
+              </div>
+
+              {/* URLs */}
+              <div className="space-y-3 pt-4 border-t border-outline-variant">
+                <div>
+                  <p className="text-xs text-on-surface-variant mb-1">
+                    URL solicitada
+                  </p>
+                  <p className="text-sm font-mono text-on-surface break-all">
+                    {result.url}
+                  </p>
+                </div>
+                {result.finalUrl !== result.url && (
+                  <div>
+                    <p className="text-xs text-on-surface-variant mb-1">
+                      URL final (tras redirects)
+                    </p>
+                    <p className="text-sm font-mono text-on-surface break-all">
+                      {result.finalUrl}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* HTML colapsable */}
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
+            <button
+              onClick={() => setHtmlOpen(!htmlOpen)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-surface-container-low transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                {htmlOpen ? (
+                  <ChevronDown className="w-4 h-4 text-secondary" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-secondary" />
+                )}
+                <FileCode className="w-4 h-4 text-secondary" />
+                <span className="text-sm font-semibold text-on-surface">
+                  HTML de la página
+                </span>
+              </div>
+              <span className="text-xs text-on-surface-variant">
+                {result.html.length.toLocaleString()} caracteres
+              </span>
+            </button>
+
+            {htmlOpen && (
+              <div className="border-t border-outline-variant">
+                <pre className="p-6 text-xs font-mono text-on-surface overflow-auto max-h-[600px] whitespace-pre-wrap break-all bg-surface-container-lowest">
+                  {result.html}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUBCOMPONENTES
+// ─────────────────────────────────────────────────────────────
+
+function Step({ number, text }: { number: number; text: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-xs font-bold">
+        {number}
+      </div>
+      <p className="text-sm text-on-surface-variant leading-snug pt-0.5">{text}</p>
+    </div>
+  );
+}
+
+function Metric({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="p-2 rounded-lg bg-surface-container">{icon}</div>
+      <div>
+        <p className="text-xs text-on-surface-variant">{label}</p>
+        <p className="font-semibold text-on-surface">{value}</p>
+      </div>
     </div>
   );
 }

@@ -10,7 +10,7 @@ const navItems: NavItem[] = [
   { to: '/', label: 'Inicio', icon: '/icons/casa.png' },
   { to: '/dashboard', label: 'Dashboard', icon: '/icons/dashboard.png' },
   { to: '/monitors', label: 'Monitoreados', icon: '/icons/monitoreados.png' },
-  { to: '/builder', label: 'Constructor', icon: '/icons/constructor.png' },
+  { to: '/builder', label: 'Asistente de importación', icon: '/icons/constructor.png' },
   { to: '/profile', label: 'Perfil', icon: '/icons/perfil.png' },
 ];
 
