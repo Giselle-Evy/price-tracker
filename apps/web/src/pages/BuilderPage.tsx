@@ -9,12 +9,11 @@ import {
   FileCode,
   CheckCircle2,
   X,
-  ChevronDown,
-  ChevronRight,
   Sparkles,
 } from 'lucide-react';
 
 import { api, type ApiError } from '../lib/api';
+import HtmlInspector from '../components/html-inspector/HtmlInspector';
 
 type AnalyzeResponse = {
   url: string;
@@ -32,13 +31,11 @@ export default function BuilderPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
-  const [htmlOpen, setHtmlOpen] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setResult(null);
-    setHtmlOpen(false);
     setIsLoading(true);
 
     try {
@@ -56,14 +53,12 @@ export default function BuilderPage() {
     setUrl('');
     setResult(null);
     setError(null);
-    setHtmlOpen(false);
   }
 
   function handleAnalyzeAnother() {
     setResult(null);
     setError(null);
     setUrl('');
-    setHtmlOpen(false);
   }
 
   return (
@@ -105,7 +100,7 @@ export default function BuilderPage() {
           <div className="relative flex items-center flex-1">
             <Globe className="absolute left-3 w-5 h-5 text-secondary pointer-events-none" />
             <input
-              type="url"
+              type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://ejemplo.com/producto"
@@ -186,7 +181,6 @@ export default function BuilderPage() {
         <div className="space-y-4">
           {/* Metadatos */}
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
-            {/* Header del resultado */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant bg-surface-container-low">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-primary-container" />
@@ -203,7 +197,6 @@ export default function BuilderPage() {
               </button>
             </div>
 
-            {/* Métricas */}
             <div className="p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <Metric
@@ -228,7 +221,6 @@ export default function BuilderPage() {
                 />
               </div>
 
-              {/* URLs */}
               <div className="space-y-3 pt-4 border-t border-outline-variant">
                 <div>
                   <p className="text-xs text-on-surface-variant mb-1">
@@ -252,36 +244,8 @@ export default function BuilderPage() {
             </div>
           </div>
 
-          {/* HTML colapsable */}
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
-            <button
-              onClick={() => setHtmlOpen(!htmlOpen)}
-              className="w-full flex items-center justify-between px-6 py-4 hover:bg-surface-container-low transition-colors text-left"
-            >
-              <div className="flex items-center gap-2">
-                {htmlOpen ? (
-                  <ChevronDown className="w-4 h-4 text-secondary" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-secondary" />
-                )}
-                <FileCode className="w-4 h-4 text-secondary" />
-                <span className="text-sm font-semibold text-on-surface">
-                  HTML de la página
-                </span>
-              </div>
-              <span className="text-xs text-on-surface-variant">
-                {result.html.length.toLocaleString()} caracteres
-              </span>
-            </button>
-
-            {htmlOpen && (
-              <div className="border-t border-outline-variant">
-                <pre className="p-6 text-xs font-mono text-on-surface overflow-auto max-h-[600px] whitespace-pre-wrap break-all bg-surface-container-lowest">
-                  {result.html}
-                </pre>
-              </div>
-            )}
-          </div>
+          {/* Inspector de HTML */}
+          <HtmlInspector html={result.html} />
         </div>
       )}
     </div>
