@@ -6,9 +6,10 @@ import ElementDetails from './ElementDetails';
 
 type Props = {
   html: string;
+  onAddField: (selector: string, suggestedAttribute?: string) => void;
 };
 
-export default function HtmlInspector({ html }: Props) {
+export default function HtmlInspector({ html, onAddField }: Props) {
   const [selectedNode, setSelectedNode] = useState<HtmlNode | null>(null);
 
   const root = useMemo(() => parseHtml(html), [html]);
@@ -24,7 +25,6 @@ export default function HtmlInspector({ html }: Props) {
 
   return (
     <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant bg-surface-container-low">
         <h2 className="text-sm font-semibold text-on-surface">
           Inspector de HTML
@@ -34,9 +34,7 @@ export default function HtmlInspector({ html }: Props) {
         </span>
       </div>
 
-      {/* Panel dividido */}
       <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-outline-variant">
-        {/* Árbol */}
         <div className="max-h-[600px] overflow-auto p-2">
           <HtmlTree
             root={root}
@@ -45,9 +43,8 @@ export default function HtmlInspector({ html }: Props) {
           />
         </div>
 
-        {/* Detalles */}
         <div className="max-h-[600px] overflow-auto bg-surface-container-low/30">
-          <ElementDetails node={selectedNode} />
+          <ElementDetails node={selectedNode} onAddField={onAddField} />
         </div>
       </div>
     </div>

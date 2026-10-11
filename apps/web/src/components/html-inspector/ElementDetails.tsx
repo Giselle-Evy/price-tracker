@@ -1,4 +1,4 @@
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { buildSelector } from './utils/buildSelector';
@@ -6,9 +6,10 @@ import type { HtmlNode } from './utils/parseHtml';
 
 type Props = {
   node: HtmlNode | null;
+  onAddField: (selector: string, suggestedAttribute?: string) => void;
 };
 
-export default function ElementDetails({ node }: Props) {
+export default function ElementDetails({ node, onAddField }: Props) {
   const [copied, setCopied] = useState(false);
 
   if (!node) {
@@ -73,6 +74,15 @@ export default function ElementDetails({ node }: Props) {
           {selector}
         </code>
       </div>
+
+      {/* Botón agregar como campo */}
+      <button
+        onClick={() => onAddField(selector, node.tag === 'img' ? 'src' : undefined)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-primary-container hover:bg-primary text-on-primary-container font-semibold text-sm transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Agregar como campo
+      </button>
 
       {/* ID */}
       {node.id && (

@@ -14,6 +14,12 @@ import {
 
 import { api, type ApiError } from '../lib/api';
 import HtmlInspector from '../components/html-inspector/HtmlInspector';
+import AddFieldModal, {
+  type NewField,
+} from '../components/html-inspector/AddFieldModal';
+import FieldsPanel, {
+  type ExtractField,
+} from '../components/html-inspector/FieldsPanel';
 
 type AnalyzeResponse = {
   url: string;
@@ -32,10 +38,19 @@ export default function BuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
 
+  // Campos a extraer
+  const [fields, setFields] = useState<ExtractField[]>([]);
+
+  // Modal de agregar campo
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalSelector, setModalSelector] = useState('');
+  const [modalAttribute, setModalAttribute] = useState<string | undefined>();
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setResult(null);
+    setFields([]);
     setIsLoading(true);
 
     try {
@@ -53,12 +68,40 @@ export default function BuilderPage() {
     setUrl('');
     setResult(null);
     setError(null);
+    setFields([]);
   }
 
   function handleAnalyzeAnother() {
     setResult(null);
     setError(null);
     setUrl('');
+    setFields([]);
+  }
+
+  function handleOpenAddField(selector: string, suggestedAttribute?: string) {
+    setModalSelector(selector);
+    setModalAttribute(suggestedAttribute);
+    setModalOpen(true);
+  }
+
+  function handleConfirmAddField(newField: NewField) {
+    setFields((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        ...newField,
+      },
+    ]);
+    setModalOpen(false);
+  }
+
+  function handleRemoveField(id: string) {
+    setFields((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  function handleTestExtraction() {
+    // TODO: implementar en 8.5
+    console.log('Probar extracción con:', fields);
   }
 
   return (
@@ -245,9 +288,27 @@ export default function BuilderPage() {
           </div>
 
           {/* Inspector de HTML */}
-          <HtmlInspector html={result.html} />
+          <HtmlInspector html={result.html} onAddField={handleOpenAddField} />
+
+          {/* Panel de campos */}
+          <FieldsPanel
+            fields={fields}
+            onRemove={handleRemoveField}
+            onTest={handleTestExtraction}
+            canTest={fields.length > 0}
+          />
         </div>
       )}
+
+      {/* Modal de agregar campo */}
+        <AddFieldModal
+        key={modalOpen ? modalSelector : 'closed'}
+        open={modalOpen}
+        selector={modalSelector}
+        suggestedAttribute={modalAttribute}
+        onConfirm={handleConfirmAddField}
+        onCancel={() => setModalOpen(false)}
+      />
     </div>
   );
 }
