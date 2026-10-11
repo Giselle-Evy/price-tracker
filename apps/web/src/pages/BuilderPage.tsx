@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useRef, type FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import {
   Globe,
@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   X,
   Sparkles,
+  Pencil,
 } from 'lucide-react';
 
 import { api, type ApiError } from '../lib/api';
@@ -40,13 +41,49 @@ type AnalyzeResponse = {
   htmlSize: number;
 };
 
+type ConfigFieldDto = {
+  id: string;
+  label: string;
+  selector: string;
+  attribute: string | null;
+  type: 'text' | 'price' | 'image' | 'url';
+  isPrimary: boolean;
+  orderIndex: number;
+};
+
+type ConfigDto = {
+  id: string;
+  userId: string;
+  name: string;
+  sourceUrl: string;
+  sourceDomain: string;
+  status: 'draft' | 'active' | 'error' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+  fields: ConfigFieldDto[];
+};
+
 export default function BuilderPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const accessToken = useAuthStore((state) => state.accessToken);
+
+  // Modo: 'create' o 'edit'.
+  // Importante: el configId se guarda en estado con un initializer que
+  // lee el searchParam UNA SOLA VEZ. Así, cuando limpiamos los query
+  // params con setSearchParams({}), el modo edición NO se pierde.
+  const [configId] = useState<string | null>(() =>
+    searchParams.get('configId')
+  );
+  const isEditMode = configId !== null;
+
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
+
+  // Info de la config en modo edición
+  const [editingConfigName, setEditingConfigName] = useState<string>('');
 
   // Campos a extraer
   const [fields, setFields] = useState<ExtractField[]>([]);
@@ -66,16 +103,22 @@ export default function BuilderPage() {
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  // Refs para inicialización única
+  const bootstrappedRef = useRef(false);
+
+  // ─────────────────────────────────────────────────────────
+  // ANALIZAR
+  // ─────────────────────────────────────────────────────────
+  async function runAnalyze(urlToAnalyze: string) {
     setError(null);
     setResult(null);
-    setFields([]);
     setExtractionResults(null);
     setIsLoading(true);
 
     try {
-      const data = await api.post<AnalyzeResponse>('/analyze', { url });
+      const data = await api.post<AnalyzeResponse>('/analyze', {
+        url: urlToAnalyze,
+      });
       setResult(data);
     } catch (err) {
       const apiError = err as ApiError;
@@ -83,6 +126,78 @@ export default function BuilderPage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // BOOTSTRAP (leer query params al montar)
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (bootstrappedRef.current) return;
+
+    const urlParam = searchParams.get('url');
+    const autorun = searchParams.get('autorun');
+    const configIdParam = searchParams.get('configId');
+
+    if (!urlParam && !configIdParam) return;
+
+    bootstrappedRef.current = true;
+
+    // Diferimos a un microtask para no hacer setState síncrono en el effect.
+    queueMicrotask(async () => {
+      // Limpiar los query params de la URL del navegador.
+      // El configId ya está guardado en estado, así que esto no lo pierde.
+      setSearchParams({}, { replace: true });
+
+      // Si estamos editando, traemos la config completa primero.
+      if (configIdParam) {
+        try {
+          const existing = await api.get<ConfigDto>(
+            `/configs/${configIdParam}`,
+            accessToken
+          );
+
+          setEditingConfigName(existing.name);
+          setUrl(existing.sourceUrl);
+
+          // Convertir ConfigFieldDto[] a ExtractField[]
+          const mapped: ExtractField[] = existing.fields
+            .slice()
+            .sort((a, b) => a.orderIndex - b.orderIndex)
+            .map((f) => ({
+              id: crypto.randomUUID(),
+              label: f.label,
+              selector: f.selector,
+              attribute: f.attribute ?? undefined,
+              type: f.type,
+            }));
+          setFields(mapped);
+
+          // Analizar la URL original para tener el HTML
+          if (autorun === '1' || urlParam) {
+            void runAnalyze(existing.sourceUrl);
+          }
+        } catch (err) {
+          const apiError = err as ApiError;
+          setError(apiError.error || 'Error al cargar la configuración');
+        }
+      } else if (urlParam) {
+        // Modo normal: URL desde query, sin config
+        setUrl(urlParam);
+        if (autorun === '1') {
+          void runAnalyze(urlParam);
+        }
+      }
+    });
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─────────────────────────────────────────────────────────
+  // SUBMIT MANUAL
+  // ─────────────────────────────────────────────────────────
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    await runAnalyze(url);
   }
 
   function handleClear() {
@@ -154,10 +269,21 @@ export default function BuilderPage() {
         })),
       };
 
-      await api.post('/configs', payload, accessToken);
-
-      setSaveModalOpen(false);
-      navigate('/configs');
+      if (isEditMode && configId) {
+        // PATCH: actualizar config existente
+        await api.patch(`/configs/${configId}`, payload, accessToken);
+        setSaveModalOpen(false);
+        navigate(`/configs/${configId}`);
+      } else {
+        // POST: crear nueva config
+        const created = await api.post<{ id: string }>(
+          '/configs',
+          payload,
+          accessToken
+        );
+        setSaveModalOpen(false);
+        navigate(`/configs/${created.id}`);
+      }
     } catch (err) {
       const apiError = err as ApiError;
       setSaveError(apiError.error || 'Error al guardar la configuración');
@@ -167,9 +293,19 @@ export default function BuilderPage() {
   }
 
   // Calcular el nombre sugerido para la config
-  const suggestedConfigName = result?.finalUrl
-    ? `Config ${new URL(result.finalUrl).hostname}`
-    : 'Nueva configuración';
+  const suggestedConfigName = isEditMode
+    ? editingConfigName
+    : result?.finalUrl
+      ? `Config ${new URL(result.finalUrl).hostname}`
+      : 'Nueva configuración';
+
+  // Título según modo
+  const pageTitle = isEditMode
+    ? 'Editando configuración'
+    : 'Asistente de importación';
+  const pageSubtitle = isEditMode
+    ? 'Modificá los campos o la URL y guardá los cambios.'
+    : 'Pega la URL de un producto. Lo analizaremos para extraer automáticamente su nombre, precio, imagen y más.';
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -177,20 +313,19 @@ export default function BuilderPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 rounded-lg bg-primary-container">
-            <Sparkles className="w-5 h-5 text-on-primary-container" />
+            {isEditMode ? (
+              <Pencil className="w-5 h-5 text-on-primary-container" />
+            ) : (
+              <Sparkles className="w-5 h-5 text-on-primary-container" />
+            )}
           </div>
-          <h1 className="text-3xl font-bold text-on-surface">
-            Asistente de importación
-          </h1>
+          <h1 className="text-3xl font-bold text-on-surface">{pageTitle}</h1>
         </div>
-        <p className="text-on-surface-variant">
-          Pega la URL de un producto. Lo analizaremos para extraer automáticamente
-          su nombre, precio, imagen y más.
-        </p>
+        <p className="text-on-surface-variant">{pageSubtitle}</p>
       </div>
 
-      {/* Card de instrucciones (solo si no hay resultado) */}
-      {!result && !isLoading && (
+      {/* Card de instrucciones (solo si no hay resultado y no estamos editando) */}
+      {!result && !isLoading && !isEditMode && (
         <div className="mb-8 bg-surface-container-low rounded-xl border border-outline-variant p-6">
           <h2 className="text-sm font-semibold text-on-surface mb-3 uppercase tracking-wider">
             Cómo funciona
@@ -317,7 +452,9 @@ export default function BuilderPage() {
                 <Metric
                   icon={<FileCode className="w-4 h-4 text-secondary" />}
                   label="Método"
-                  value={result.method.charAt(0).toUpperCase() + result.method.slice(1)}
+                  value={
+                    result.method.charAt(0).toUpperCase() + result.method.slice(1)
+                  }
                 />
                 <Metric
                   icon={<Clock className="w-4 h-4 text-secondary" />}
@@ -410,6 +547,7 @@ export default function BuilderPage() {
         open={saveModalOpen}
         defaultName={suggestedConfigName}
         isSaving={isSavingConfig}
+        mode={isEditMode ? 'edit' : 'create'}
         onConfirm={handleSaveConfig}
         onCancel={() => setSaveModalOpen(false)}
       />

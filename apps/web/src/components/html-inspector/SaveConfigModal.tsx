@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { X, Save } from 'lucide-react';
+import { X, Save, Pencil } from 'lucide-react';
 
 type Props = {
   open: boolean;
   defaultName: string;
   isSaving: boolean;
+  mode?: 'create' | 'edit';
   onConfirm: (name: string) => void;
   onCancel: () => void;
 };
@@ -13,6 +14,7 @@ export default function SaveConfigModal({
   open,
   defaultName,
   isSaving,
+  mode = 'create',
   onConfirm,
   onCancel,
 }: Props) {
@@ -26,15 +28,21 @@ export default function SaveConfigModal({
     onConfirm(name.trim());
   }
 
+  const isEdit = mode === 'edit';
+  const title = isEdit ? 'Guardar cambios' : 'Guardar configuración';
+  const submitLabel = isEdit ? 'Actualizar' : 'Guardar';
+  const submittingLabel = isEdit ? 'Actualizando...' : 'Guardando...';
+  const Icon = isEdit ? Pencil : Save;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
       <div className="w-full max-w-md bg-surface-container-lowest rounded-xl shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
           <div className="flex items-center gap-2">
-            <Save className="w-5 h-5 text-secondary" />
+            <Icon className="w-5 h-5 text-secondary" />
             <h2 className="text-lg font-semibold text-on-surface">
-              Guardar configuración
+              {title}
             </h2>
           </div>
           <button
@@ -90,10 +98,10 @@ export default function SaveConfigModal({
               {isSaving ? (
                 <>
                   <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-on-primary-container border-t-transparent rounded-full" />
-                  Guardando...
+                  {submittingLabel}
                 </>
               ) : (
-                'Guardar'
+                submitLabel
               )}
             </button>
           </div>
