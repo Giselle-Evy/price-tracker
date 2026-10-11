@@ -16,7 +16,8 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3",
     "bcrypt": "^5.1.1",
     "cheerio": "^1.2.0",
     "cors": "^2.8.5",
