@@ -1,4 +1,13 @@
-import { Trash2, Tag, Hash, Image as ImageIcon, Link as LinkIcon, Type, FlaskConical } from 'lucide-react';
+import {
+  Trash2,
+  Tag,
+  Hash,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Type,
+  FlaskConical,
+  Save,
+} from 'lucide-react';
 
 import type { FieldType } from './AddFieldModal';
 
@@ -14,6 +23,7 @@ type Props = {
   fields: ExtractField[];
   onRemove: (id: string) => void;
   onTest: () => void;
+  onSaveConfig: () => void;
   canTest: boolean;
 };
 
@@ -24,7 +34,13 @@ const TYPE_ICONS: Record<FieldType, React.ReactNode> = {
   url: <LinkIcon className="w-3.5 h-3.5" />,
 };
 
-export default function FieldsPanel({ fields, onRemove, onTest, canTest }: Props) {
+export default function FieldsPanel({
+  fields,
+  onRemove,
+  onTest,
+  onSaveConfig,
+  canTest,
+}: Props) {
   return (
     <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
       {/* Header */}
@@ -41,14 +57,24 @@ export default function FieldsPanel({ fields, onRemove, onTest, canTest }: Props
           )}
         </div>
         {fields.length > 0 && (
-          <button
-            onClick={onTest}
-            disabled={!canTest}
-            className="flex items-center gap-1.5 text-xs font-medium text-primary-container hover:text-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <FlaskConical className="w-3.5 h-3.5" />
-            Probar extracción
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onTest}
+              disabled={!canTest}
+              className="flex items-center gap-1.5 text-xs font-medium text-secondary hover:text-on-surface transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              Probar
+            </button>
+            <button
+              onClick={onSaveConfig}
+              disabled={!canTest}
+              className="flex items-center gap-1.5 text-xs font-semibold text-primary-container hover:text-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Save className="w-3.5 h-3.5" />
+              Guardar configuración
+            </button>
+          </div>
         )}
       </div>
 
@@ -66,13 +92,14 @@ export default function FieldsPanel({ fields, onRemove, onTest, canTest }: Props
       ) : (
         <ul className="divide-y divide-outline-variant">
           {fields.map((field) => (
-            <li key={field.id} className="flex items-center gap-3 px-6 py-3 hover:bg-surface-container-low/50 transition-colors">
-              {/* Icono tipo */}
+            <li
+              key={field.id}
+              className="flex items-center gap-3 px-6 py-3 hover:bg-surface-container-low/50 transition-colors"
+            >
               <div className="p-2 rounded-lg bg-surface-container">
                 {TYPE_ICONS[field.type]}
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-sm text-on-surface">
@@ -94,7 +121,6 @@ export default function FieldsPanel({ fields, onRemove, onTest, canTest }: Props
                 </div>
               </div>
 
-              {/* Remove */}
               <button
                 onClick={() => onRemove(field.id)}
                 className="p-2 rounded-lg text-secondary hover:text-error hover:bg-error-container/50 transition-colors"

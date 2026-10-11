@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../stores/authStore';
 import {
   Globe,
   Search,
@@ -21,6 +23,7 @@ import FieldsPanel, {
   type ExtractField,
 } from '../components/html-inspector/FieldsPanel';
 import ExtractionResults from '../components/html-inspector/ExtractionResults';
+import SaveConfigModal from '../components/html-inspector/SaveConfigModal';
 import {
   runExtraction,
   type ExtractionResult,
@@ -38,6 +41,8 @@ type AnalyzeResponse = {
 };
 
 export default function BuilderPage() {
+  const navigate = useNavigate();
+  const accessToken = useAuthStore((state) => state.accessToken);
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +60,11 @@ export default function BuilderPage() {
   const [extractionResults, setExtractionResults] = useState<
     ExtractionResult[] | null
   >(null);
+
+  // Guardar configuración
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -119,6 +129,51 @@ export default function BuilderPage() {
     const extraction = runExtraction(result.html, fields);
     setExtractionResults(extraction);
   }
+
+  function handleOpenSaveConfig() {
+    setSaveError(null);
+    setSaveModalOpen(true);
+  }
+
+  async function handleSaveConfig(name: string) {
+    if (!result || fields.length === 0) return;
+
+    setIsSavingConfig(true);
+    setSaveError(null);
+
+    try {
+      const payload = {
+        name,
+        sourceUrl: result.url,
+        fields: fields.map((f, index) => ({
+          label: f.label,
+          selector: f.selector,
+          attribute: f.attribute || undefined,
+          type: f.type,
+          orderIndex: index,
+        })),
+      };
+
+      const created = await api.post<{ id: string }>(
+  '/configs',
+  payload,
+  accessToken
+);
+
+      setSaveModalOpen(false);
+      navigate(`/configs/${created.id}`);
+    } catch (err) {
+      const apiError = err as ApiError;
+      setSaveError(apiError.error || 'Error al guardar la configuración');
+    } finally {
+      setIsSavingConfig(false);
+    }
+  }
+
+  // Calcular el nombre sugerido para la config
+  const suggestedConfigName = result?.finalUrl
+    ? `Config ${new URL(result.finalUrl).hostname}`
+    : 'Nueva configuración';
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -311,6 +366,7 @@ export default function BuilderPage() {
             fields={fields}
             onRemove={handleRemoveField}
             onTest={handleTestExtraction}
+            onSaveConfig={handleOpenSaveConfig}
             canTest={fields.length > 0}
           />
 
@@ -324,6 +380,24 @@ export default function BuilderPage() {
         </div>
       )}
 
+      {/* Toast de error al guardar */}
+      {saveError && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-start gap-3 p-4 rounded-lg bg-error-container text-on-error-container text-sm shadow-lg max-w-md">
+          <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <strong className="font-semibold block mb-1">Error al guardar</strong>
+            <p className="text-sm opacity-90">{saveError}</p>
+          </div>
+          <button
+            onClick={() => setSaveError(null)}
+            className="p-1 rounded text-on-error-container hover:bg-on-error-container/10 transition-colors"
+            aria-label="Cerrar error"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Modal de agregar campo */}
       <AddFieldModal
         key={modalOpen ? modalSelector : 'closed'}
@@ -332,6 +406,16 @@ export default function BuilderPage() {
         suggestedAttribute={modalAttribute}
         onConfirm={handleConfirmAddField}
         onCancel={() => setModalOpen(false)}
+      />
+
+      {/* Modal de guardar config */}
+      <SaveConfigModal
+        key={saveModalOpen ? 'save-open' : 'save-closed'}
+        open={saveModalOpen}
+        defaultName={suggestedConfigName}
+        isSaving={isSavingConfig}
+        onConfirm={handleSaveConfig}
+        onCancel={() => setSaveModalOpen(false)}
       />
     </div>
   );
