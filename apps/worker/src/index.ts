@@ -1,6 +1,10 @@
 import { env } from './config/env.js';
 import { prisma, disconnectPrisma } from './lib/prisma.js';
 import { redis, disconnectRedis } from './lib/redis.js';
+import {
+  scrapeQueue,
+  closeScrapeQueue,
+} from './queues/scrapeQueue.js';
 
 async function main() {
   console.log('🚀 Worker arrancando...');
@@ -24,11 +28,26 @@ async function main() {
     process.exit(1);
   }
 
+  // 3. Verificar que la cola esté accesible
+  try {
+    const counts = await scrapeQueue.getJobCounts(
+      'waiting',
+      'active',
+      'completed',
+      'failed'
+    );
+    console.log(
+      `✅ Cola "${scrapeQueue.name}" lista. Jobs: waiting=${counts.waiting}, active=${counts.active}, completed=${counts.completed}, failed=${counts.failed}`
+    );
+  } catch (err) {
+    console.error('❌ Error accediendo a la cola:', err);
+    process.exit(1);
+  }
+
   console.log('🎉 Worker listo. Esperando jobs...');
 
-  // TODO (FASE 10.2): definir la cola de scraping
-  // TODO (FASE 10.3): agregar el procesador de jobs
-  // TODO (FASE 10.4): programar jobs repetibles
+  // TODO (FASE 10.3): agregar el Worker de BullMQ para procesar jobs
+  // TODO (FASE 10.4): agregar el scheduler de jobs repetibles
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -39,6 +58,7 @@ async function shutdown(signal: string) {
   console.log(`\n🛑 Recibido ${signal}. Cerrando...`);
 
   try {
+    await closeScrapeQueue();
     await disconnectRedis();
     await disconnectPrisma();
     console.log('✅ Conexiones cerradas');
