@@ -125,6 +125,7 @@ model ScrapeField {
   label      String   @db.VarChar(80)
   selector   String   @db.Text
   attribute  String?  @db.VarChar(80)
+  type       FieldType @default(text)
   isPrimary  Boolean  @default(false) @map("is_primary")
   transform  Json?
   orderIndex Int      @default(0) @map("order_index")
@@ -133,6 +134,13 @@ model ScrapeField {
 
   @@index([configId])
   @@map("scrape_fields")
+}
+
+enum FieldType {
+  text
+  price
+  image
+  url
 }
 
 // ─────────────────────────────────────────────────────────────

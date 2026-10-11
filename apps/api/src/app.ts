@@ -7,11 +7,11 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { NotFoundError } from './lib/errors.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { analyzeRouter } from './modules/analyze/analyze.routes.js';
+import { configsRouter } from './modules/configs/configs.routes.js';
 
 export function createApp(): Application {
   const app = express();
 
-  // Seguridad básica
   app.use(helmet());
   app.use(
     cors({
@@ -22,11 +22,9 @@ export function createApp(): Application {
     })
   );
 
-  // Parseo de body
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-  // Healthcheck
   app.get('/health', (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
@@ -38,13 +36,14 @@ export function createApp(): Application {
   // Rutas
   app.use('/auth', authRouter);
   app.use('/analyze', analyzeRouter);
+  app.use('/configs', configsRouter);
 
-  // Ruta 404
+  // 404
   app.use((_req, _res, next) => {
     next(new NotFoundError('Route not found'));
   });
 
-  // Middleware de errores (SIEMPRE el último)
+  // Error handler
   app.use(errorHandler);
 
   return app;
