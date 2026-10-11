@@ -20,6 +20,11 @@ import AddFieldModal, {
 import FieldsPanel, {
   type ExtractField,
 } from '../components/html-inspector/FieldsPanel';
+import ExtractionResults from '../components/html-inspector/ExtractionResults';
+import {
+  runExtraction,
+  type ExtractionResult,
+} from '../components/html-inspector/utils/runExtraction';
 
 type AnalyzeResponse = {
   url: string;
@@ -46,11 +51,17 @@ export default function BuilderPage() {
   const [modalSelector, setModalSelector] = useState('');
   const [modalAttribute, setModalAttribute] = useState<string | undefined>();
 
+  // Resultados de extracción
+  const [extractionResults, setExtractionResults] = useState<
+    ExtractionResult[] | null
+  >(null);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setResult(null);
     setFields([]);
+    setExtractionResults(null);
     setIsLoading(true);
 
     try {
@@ -69,6 +80,7 @@ export default function BuilderPage() {
     setResult(null);
     setError(null);
     setFields([]);
+    setExtractionResults(null);
   }
 
   function handleAnalyzeAnother() {
@@ -76,6 +88,7 @@ export default function BuilderPage() {
     setError(null);
     setUrl('');
     setFields([]);
+    setExtractionResults(null);
   }
 
   function handleOpenAddField(selector: string, suggestedAttribute?: string) {
@@ -92,16 +105,19 @@ export default function BuilderPage() {
         ...newField,
       },
     ]);
+    setExtractionResults(null);
     setModalOpen(false);
   }
 
   function handleRemoveField(id: string) {
     setFields((prev) => prev.filter((f) => f.id !== id));
+    setExtractionResults(null);
   }
 
   function handleTestExtraction() {
-    // TODO: implementar en 8.5
-    console.log('Probar extracción con:', fields);
+    if (!result) return;
+    const extraction = runExtraction(result.html, fields);
+    setExtractionResults(extraction);
   }
 
   return (
@@ -297,11 +313,19 @@ export default function BuilderPage() {
             onTest={handleTestExtraction}
             canTest={fields.length > 0}
           />
+
+          {/* Resultados de extracción */}
+          {extractionResults && (
+            <ExtractionResults
+              results={extractionResults}
+              onClose={() => setExtractionResults(null)}
+            />
+          )}
         </div>
       )}
 
       {/* Modal de agregar campo */}
-        <AddFieldModal
+      <AddFieldModal
         key={modalOpen ? modalSelector : 'closed'}
         open={modalOpen}
         selector={modalSelector}
