@@ -11,6 +11,7 @@ import MonitorsPage from './pages/MonitorsPage';
 import BuilderPage from './pages/BuilderPage';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
+import ConfigsPage from './pages/ConfigsPage';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/monitors" element={<MonitorsPage />} />
           <Route path="/builder" element={<BuilderPage />} />
+          <Route path="/configs" element={<ConfigsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
 

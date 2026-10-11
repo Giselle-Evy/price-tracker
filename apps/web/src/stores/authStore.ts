@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, type ApiError } from '../lib/api';
+import { api, registerAuthCallbacks, type ApiError } from '../lib/api';
 
 export type User = {
   id: string;
@@ -25,11 +25,14 @@ type AuthState = {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
+
+  // Usados por el interceptor de api.ts
+  setTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
+  onAuthFailure: () => void;
 };
 
 const STORAGE_KEY = 'price-tracker-auth';
 
-// Cargar estado inicial desde localStorage
 function loadInitialState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -47,7 +50,7 @@ function loadInitialState() {
 
 const initial = loadInitialState();
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: initial.user,
   accessToken: initial.accessToken,
   refreshToken: initial.refreshToken,
@@ -126,4 +129,46 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  setTokens: ({ accessToken, refreshToken }) => {
+    const current = get();
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        user: current.user,
+        accessToken,
+        refreshToken,
+      })
+    );
+    set({ accessToken, refreshToken });
+  },
+
+  onAuthFailure: () => {
+    localStorage.removeItem(STORAGE_KEY);
+    set({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isLoading: false,
+      error: null,
+    });
+  },
 }));
+
+// ─────────────────────────────────────────────────────────────
+// REGISTRAR CALLBACKS EN api.ts
+// Se hace UNA vez al cargar el módulo del store.
+// ─────────────────────────────────────────────────────────────
+
+registerAuthCallbacks({
+  getTokens: () => {
+    const { accessToken, refreshToken } = useAuthStore.getState();
+    return { accessToken, refreshToken };
+  },
+  setTokens: (tokens) => {
+    useAuthStore.getState().setTokens(tokens);
+  },
+  onAuthFailure: () => {
+    useAuthStore.getState().onAuthFailure();
+  },
+});

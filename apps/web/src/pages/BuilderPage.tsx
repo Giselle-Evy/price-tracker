@@ -154,14 +154,10 @@ export default function BuilderPage() {
         })),
       };
 
-      const created = await api.post<{ id: string }>(
-  '/configs',
-  payload,
-  accessToken
-);
+      await api.post('/configs', payload, accessToken);
 
       setSaveModalOpen(false);
-      navigate(`/configs/${created.id}`);
+      navigate('/configs');
     } catch (err) {
       const apiError = err as ApiError;
       setSaveError(apiError.error || 'Error al guardar la configuración');
