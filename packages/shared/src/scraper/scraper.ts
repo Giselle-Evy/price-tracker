@@ -1,8 +1,11 @@
 import * as cheerio from 'cheerio';
 import { chromium, type Browser } from 'playwright';
 
-import { AppError, BadRequestError } from '../lib/errors.js';
-import { assertSafeUrl, FETCH_LIMITS } from './ssrf-guard.js';
+import {
+  assertSafeUrl,
+  FETCH_LIMITS,
+  SharedBadRequestError,
+} from './ssrf-guard.js';
 
 export type ScrapeMethod = 'cheerio' | 'playwright';
 
@@ -20,10 +23,6 @@ export type ScrapeResult = {
   durationMs: number;
   method: ScrapeMethod;
 };
-
-// ─────────────────────────────────────────────────────────────
-// FETCH CON LÍMITES
-// ─────────────────────────────────────────────────────────────
 
 async function fetchWithLimits(
   url: string,
@@ -51,22 +50,20 @@ async function fetchWithLimits(
 
     const contentType = response.headers.get('content-type') || '';
 
-    // Verificar content-type: solo permitimos HTML/XML
     if (
       !contentType.includes('text/html') &&
       !contentType.includes('application/xhtml') &&
       !contentType.includes('text/xml') &&
       !contentType.includes('application/xml')
     ) {
-      throw new BadRequestError(
+      throw new SharedBadRequestError(
         `Tipo de contenido no soportado: ${contentType || 'desconocido'}`
       );
     }
 
-    // Leer con límite de tamaño
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new AppError('No se pudo leer la respuesta', 500);
+      throw new SharedBadRequestError('No se pudo leer la respuesta', 500);
     }
 
     const chunks: Uint8Array[] = [];
@@ -79,8 +76,8 @@ async function fetchWithLimits(
       totalBytes += value.length;
       if (totalBytes > opts.maxBytes) {
         reader.cancel();
-        throw new BadRequestError(
-          `La página excede el límite de ${Math.round(
+        throw new SharedBadRequestError(
+          `La pagina excede el limite de ${Math.round(
             opts.maxBytes / 1024 / 1024
           )} MB`
         );
@@ -109,24 +106,17 @@ async function fetchWithLimits(
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// DETECCIÓN DE "NECESITA JS"
-// ─────────────────────────────────────────────────────────────
-
 function detectNeedsJs(html: string): boolean {
   const $ = cheerio.load(html);
 
-  // Quitar scripts, estilos, meta y demás ruido
   $('script, style, meta, link, noscript, template').remove();
 
   const bodyText = $('body').text().trim();
 
-  // Señal 1: HTML sospechosamente corto (indica que falta contenido)
   if (html.length < 500) {
     return false;
   }
 
-  // Señal 2: Body con MUY poco texto + presencia de markers SPA
   const htmlLower = html.toLowerCase();
   const spaMarkers = [
     '<div id="root"></div>',
@@ -146,17 +136,12 @@ function detectNeedsJs(html: string): boolean {
     return true;
   }
 
-  // Señal 3: Body completamente vacío (menos de 50 caracteres)
   if (bodyText.length < 50) {
     return true;
   }
 
   return false;
 }
-
-// ─────────────────────────────────────────────────────────────
-// CHEERIO SCRAPER
-// ─────────────────────────────────────────────────────────────
 
 async function scrapeWithCheerio(
   url: string,
@@ -178,10 +163,6 @@ async function scrapeWithCheerio(
     method: 'cheerio',
   };
 }
-
-// ─────────────────────────────────────────────────────────────
-// PLAYWRIGHT SCRAPER (navegador compartido)
-// ─────────────────────────────────────────────────────────────
 
 let sharedBrowser: Browser | null = null;
 
@@ -228,7 +209,7 @@ async function scrapeWithPlaywright(
     });
 
     if (!response) {
-      throw new AppError('No se pudo cargar la página', 502);
+      throw new SharedBadRequestError('No se pudo cargar la pagina', 502);
     }
 
     const statusCode = response.status();
@@ -236,11 +217,10 @@ async function scrapeWithPlaywright(
 
     const html = await page.content();
 
-    // Verificar tamaño después de obtener
     const bytes = Buffer.byteLength(html, 'utf-8');
     if (bytes > opts.maxBytes) {
-      throw new BadRequestError(
-        `La página excede el límite de ${Math.round(
+      throw new SharedBadRequestError(
+        `La pagina excede el limite de ${Math.round(
           opts.maxBytes / 1024 / 1024
         )} MB`
       );
@@ -259,15 +239,10 @@ async function scrapeWithPlaywright(
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// FUNCIÓN PRINCIPAL
-// ─────────────────────────────────────────────────────────────
-
 export async function scrape(
   rawUrl: string,
   options: ScrapeOptions = {}
 ): Promise<ScrapeResult> {
-  // Validar SSRF
   const url = await assertSafeUrl(rawUrl);
 
   const opts = {
@@ -277,7 +252,6 @@ export async function scrape(
 
   const mode = options.mode ?? 'auto';
 
-  // Modo explícito
   if (mode === 'playwright') {
     return scrapeWithPlaywright(url.toString(), opts);
   }
@@ -286,7 +260,6 @@ export async function scrape(
     return scrapeWithCheerio(url.toString(), opts);
   }
 
-  // Modo auto: intenta Cheerio, cae a Playwright si hace falta
   try {
     const result = await scrapeWithCheerio(url.toString(), opts);
 
@@ -299,9 +272,8 @@ export async function scrape(
 
     return result;
   } catch (error) {
-    // Si Cheerio falla, intentamos Playwright como fallback
     console.warn(
-      `[scraper] Cheerio falló en ${url.toString()}, intentando Playwright:`,
+      `[scraper] Cheerio fallo en ${url.toString()}, intentando Playwright:`,
       error instanceof Error ? error.message : error
     );
     return scrapeWithPlaywright(url.toString(), opts);

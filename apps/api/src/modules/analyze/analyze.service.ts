@@ -1,4 +1,4 @@
-import { scrape, type ScrapeMethod } from '../../services/scraper.js';
+import { scrape, type ScrapeMethod } from '@price-tracker/shared/scraper';
 import type { AnalyzeInput } from './analyze.schemas.js';
 
 export type AnalyzeResult = {

@@ -1,7 +1,7 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { prisma } from './lib/prisma.js';
-import { closeBrowser } from './services/scraper.js';
+import { closeBrowser } from '@price-tracker/shared/scraper';
 
 async function main() {
   // Verificar conexión a la base de datos al arrancar

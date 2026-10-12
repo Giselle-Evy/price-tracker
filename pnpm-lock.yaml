@@ -168,6 +168,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@price-tracker/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
@@ -302,6 +305,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@price-tracker/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
@@ -330,6 +336,25 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.23.15
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/shared:
+    dependencies:
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
+      ipaddr.js:
+        specifier: ^2.2.0
+        version: 2.5.0
+      playwright:
+        specifier: ^1.64.0
+        version: 1.64.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

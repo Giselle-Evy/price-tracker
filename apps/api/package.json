@@ -16,6 +16,7 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@price-tracker/shared": "workspace:*",
     "@prisma/client": "^6.19.3",
     "prisma": "^6.19.3",
     "bcrypt": "^5.1.1",
@@ -35,7 +36,7 @@
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.9.0",
-    "prisma": "^5.22.0",
+    "prisma": "^6.19.3",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
