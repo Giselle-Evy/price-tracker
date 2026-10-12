@@ -1,10 +1,10 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { prisma } from './lib/prisma.js';
+import { closeApiScrapeQueue } from './lib/scrapeQueue.js';
 import { closeBrowser } from '@price-tracker/shared/scraper';
 
 async function main() {
-  // Verificar conexión a la base de datos al arrancar
   try {
     await prisma.$connect();
     console.log('✓ Database connection established');
@@ -20,10 +20,10 @@ async function main() {
     console.log(`  Environment: ${env.NODE_ENV}`);
   });
 
-  // Graceful shutdown
-    const shutdown = async (signal: string) => {
+  const shutdown = async (signal: string) => {
     console.log(`\n${signal} received. Shutting down...`);
     server.close(async () => {
+      await closeApiScrapeQueue();
       await closeBrowser();
       await prisma.$disconnect();
       console.log('✓ Shutdown complete');

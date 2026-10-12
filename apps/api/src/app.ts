@@ -8,6 +8,7 @@ import { NotFoundError } from './lib/errors.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { analyzeRouter } from './modules/analyze/analyze.routes.js';
 import { configsRouter } from './modules/configs/configs.routes.js';
+import { monitorsRouter } from './modules/monitors/monitors.routes.js';
 
 export function createApp(): Application {
   const app = express();
@@ -37,6 +38,7 @@ export function createApp(): Application {
   app.use('/auth', authRouter);
   app.use('/analyze', analyzeRouter);
   app.use('/configs', configsRouter);
+  app.use('/monitors', monitorsRouter);
 
   // 404
   app.use((_req, _res, next) => {
