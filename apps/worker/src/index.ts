@@ -1,10 +1,17 @@
+import { Worker } from 'bullmq';
+
 import { env } from './config/env.js';
 import { prisma, disconnectPrisma } from './lib/prisma.js';
-import { redis, disconnectRedis } from './lib/redis.js';
+import { redis, disconnectRedis, createBullConnection } from './lib/redis.js';
 import {
   scrapeQueue,
   closeScrapeQueue,
+  SCRAPE_QUEUE_NAME,
 } from './queues/scrapeQueue.js';
+import { processScrapeJob } from './processors/scrapeProcessor.js';
+import type { ScrapeJobData, ScrapeJobResult } from './queues/types.js';
+
+let worker: Worker<ScrapeJobData, ScrapeJobResult> | null = null;
 
 async function main() {
   console.log('🚀 Worker arrancando...');
@@ -44,10 +51,37 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('🎉 Worker listo. Esperando jobs...');
+  // 4. Crear el Worker que procesa los jobs
+  worker = new Worker<ScrapeJobData, ScrapeJobResult>(
+    SCRAPE_QUEUE_NAME,
+    processScrapeJob,
+    {
+      connection: createBullConnection(),
+      concurrency: 2, // Maximo 2 jobs en paralelo
+    }
+  );
 
-  // TODO (FASE 10.3): agregar el Worker de BullMQ para procesar jobs
-  // TODO (FASE 10.4): agregar el scheduler de jobs repetibles
+  worker.on('ready', () => {
+    console.log(`👷 Worker BullMQ escuchando la cola "${SCRAPE_QUEUE_NAME}"`);
+  });
+
+  worker.on('active', (job) => {
+    console.log(`⚡ Job ${job.id} activo`);
+  });
+
+  worker.on('completed', (job) => {
+    console.log(`✅ Job ${job.id} completado`);
+  });
+
+  worker.on('failed', (job, err) => {
+    console.error(`❌ Job ${job?.id} fallo:`, err.message);
+  });
+
+  worker.on('error', (err) => {
+    console.error('❌ Error en el worker BullMQ:', err);
+  });
+
+  console.log('🎉 Worker listo. Esperando jobs...');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -58,6 +92,10 @@ async function shutdown(signal: string) {
   console.log(`\n🛑 Recibido ${signal}. Cerrando...`);
 
   try {
+    if (worker) {
+      await worker.close();
+      console.log('✅ Worker BullMQ cerrado');
+    }
     await closeScrapeQueue();
     await disconnectRedis();
     await disconnectPrisma();
