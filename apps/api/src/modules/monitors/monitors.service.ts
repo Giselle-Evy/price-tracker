@@ -1,5 +1,17 @@
+import { Prisma } from '@prisma/client';
+import {
+  detectAutomaticPrice,
+  scrape,
+  SharedBadRequestError,
+} from '@price-tracker/shared/scraper';
+
 import { prisma } from '../../lib/prisma.js';
-import { NotFoundError, BadRequestError } from '../../lib/errors.js';
+import {
+  AppError,
+  NotFoundError,
+  BadRequestError,
+  ConflictError,
+} from '../../lib/errors.js';
 import {
   scheduleMonitor,
   unscheduleMonitor,
@@ -18,7 +30,8 @@ export type MonitorDto = {
   id: string;
   userId: string;
   productId: string;
-  configId: string;
+  configId: string | null;
+  extractionMode: 'manual' | 'automatic';
   name: string;
   url: string;
   imageUrl: string | null;
@@ -26,8 +39,9 @@ export type MonitorDto = {
   currentPrice: number | null;
   previousPrice: number | null;
   targetPrice: number | null;
+  durationDays: number | null;
   status: 'active' | 'paused' | 'error' | 'pending';
-  frequencyMin: 'm5' | 'm15' | 'm30';
+  frequencyMin: 'm5' | 'm10' | 'm15' | 'm30';
   alertOnDrop: boolean;
   alertEnabled: boolean;
   lastRunAt: string | null;
@@ -40,7 +54,7 @@ export type MonitorDto = {
     name: string;
     sourceUrl: string;
     sourceDomain: string;
-  };
+  } | null;
   product: {
     id: string;
     name: string;
@@ -57,7 +71,7 @@ export type MonitorDto = {
 type MonitorWithRelations = Awaited<
   ReturnType<typeof prisma.monitor.findUniqueOrThrow>
 > & {
-  config: { id: string; name: string; sourceUrl: string; sourceDomain: string };
+  config: { id: string; name: string; sourceUrl: string; sourceDomain: string } | null;
   product: {
     id: string;
     name: string;
@@ -73,6 +87,7 @@ function toMonitorDto(monitor: MonitorWithRelations): MonitorDto {
     userId: monitor.userId,
     productId: monitor.productId,
     configId: monitor.configId,
+    extractionMode: monitor.extractionMode,
     name: monitor.name,
     url: monitor.url,
     imageUrl: monitor.imageUrl,
@@ -80,6 +95,7 @@ function toMonitorDto(monitor: MonitorWithRelations): MonitorDto {
     currentPrice: monitor.currentPrice ? Number(monitor.currentPrice) : null,
     previousPrice: monitor.previousPrice ? Number(monitor.previousPrice) : null,
     targetPrice: monitor.targetPrice ? Number(monitor.targetPrice) : null,
+    durationDays: monitor.durationDays,
     status: monitor.status as MonitorDto['status'],
     frequencyMin: monitor.frequencyMin as MonitorDto['frequencyMin'],
     alertOnDrop: monitor.alertOnDrop,
@@ -89,12 +105,14 @@ function toMonitorDto(monitor: MonitorWithRelations): MonitorDto {
     nextRunAt: monitor.nextRunAt?.toISOString() ?? null,
     createdAt: monitor.createdAt.toISOString(),
     updatedAt: monitor.updatedAt.toISOString(),
-    config: {
-      id: monitor.config.id,
-      name: monitor.config.name,
-      sourceUrl: monitor.config.sourceUrl,
-      sourceDomain: monitor.config.sourceDomain,
-    },
+    config: monitor.config
+      ? {
+          id: monitor.config.id,
+          name: monitor.config.name,
+          sourceUrl: monitor.config.sourceUrl,
+          sourceDomain: monitor.config.sourceDomain,
+        }
+      : null,
     product: {
       id: monitor.product.id,
       name: monitor.product.name,
@@ -133,66 +151,144 @@ export async function createMonitor(
   userId: string,
   input: CreateMonitorInput
 ): Promise<MonitorDto> {
-  // 1. Verificar que la config existe y pertenece al user
-  const config = await prisma.scrapeConfig.findFirst({
-    where: { id: input.configId, userId },
+  const product = await prisma.product.findUnique({
+    where: { id: input.productId },
   });
 
-  if (!config) {
-    throw new NotFoundError('Configuracion no encontrada');
+  if (!product) {
+    throw new NotFoundError('Producto no encontrado');
   }
 
-  // 2. Upsert del Product por canonicalUrl
-  // Si ya existe un producto con esa URL, lo reutilizamos.
-  const product = await prisma.product.upsert({
-    where: { canonicalUrl: config.sourceUrl },
-    update: {},
-    create: {
-      name: input.name,
-      canonicalUrl: config.sourceUrl,
-      originalUrl: config.sourceUrl,
-      domain: config.sourceDomain,
-    },
-  });
+  let config: Awaited<ReturnType<typeof prisma.scrapeConfig.findFirst>> = null;
+  let initialPrice: number | null = null;
+  const extractionMode = input.configId ? 'manual' : 'automatic';
 
-  // 3. Verificar que el user no tenga ya un monitor para esa config
-  const existing = await prisma.monitor.findFirst({
-    where: { userId, configId: input.configId },
-  });
+  if (input.configId) {
+    config = await prisma.scrapeConfig.findFirst({
+      where: { id: input.configId, userId },
+    });
+    if (!config) {
+      throw new NotFoundError('Configuracion no encontrada');
+    }
+    if (!areUrlsCompatible(product.canonicalUrl, config.sourceUrl)) {
+      throw new BadRequestError(
+        'La configuración de scraping no es compatible con la URL del producto'
+      );
+    }
+  } else {
+    const existingAutomaticMonitor = await prisma.monitor.findFirst({
+      where: { userId, productId: product.id, extractionMode: 'automatic' },
+    });
+    if (existingAutomaticMonitor) {
+      throw new ConflictError('Ya existe un seguimiento automático para este producto');
+    }
 
-  if (existing) {
-    throw new BadRequestError(
-      'Ya tenes un monitor para esta configuracion'
+    let html: string;
+    try {
+      ({ html } = await scrape(product.canonicalUrl));
+    } catch (error) {
+      if (error instanceof SharedBadRequestError) {
+        throw new SharedBadRequestError(
+          `No se pudo validar la extracción automática del precio: ${error.message}`,
+          error.statusCode,
+          { retryable: error.retryable }
+        );
+      }
+
+      console.error('Error inesperado validando la extracción automática:', error);
+      throw error;
+    }
+    initialPrice = detectAutomaticPrice(html)?.price ?? null;
+    if (initialPrice === null || !Number.isFinite(initialPrice) || initialPrice <= 0) {
+      throw new BadRequestError(
+        'No se detectó un precio válido automáticamente. Configura la extracción desde el Builder e inténtalo de nuevo.'
+      );
+    }
+  }
+
+  let monitor: MonitorWithRelations;
+  try {
+    monitor = await prisma.monitor.create({
+      data: {
+        userId,
+        productId: product.id,
+        configId: config?.id ?? null,
+        extractionMode,
+        name: input.name,
+        url: product.canonicalUrl,
+        imageUrl: product.imageUrl,
+        currency: product.currency,
+        currentPrice: initialPrice,
+        frequencyMin: input.frequencyMin,
+        alertOnDrop: input.alertOnDrop,
+        alertEnabled: input.alertEnabled,
+        targetPrice: input.targetPrice ?? null,
+        durationDays: input.durationDays ?? null,
+        status: 'pending',
+      },
+      include: INCLUDE_RELATIONS,
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictError(
+        'Ya existe un seguimiento para este producto y configuración'
+      );
+    }
+    throw error;
+  }
+
+  // Solo activar el monitor cuando BullMQ confirme que el trabajo repetible quedó registrado.
+  try {
+    await scheduleMonitor(monitor);
+    monitor = await prisma.monitor.update({
+      where: { id: monitor.id },
+      data: { status: 'active' },
+      include: INCLUDE_RELATIONS,
+    });
+  } catch (error) {
+    console.error('Error registrando el monitor en BullMQ:', error);
+    try {
+      await unscheduleMonitor(monitor);
+    } catch (cleanupError) {
+      console.error('Error limpiando la programación parcial del monitor:', cleanupError);
+    }
+    await prisma.monitor.update({
+      where: { id: monitor.id },
+      data: { status: 'error' },
+    });
+    throw new AppError(
+      'No se pudo registrar el seguimiento en la cola de tareas. Inténtalo de nuevo.',
+      503
     );
   }
 
-  // 4. Crear el monitor
-  const monitor = await prisma.monitor.create({
-    data: {
-      userId,
-      productId: product.id,
-      configId: config.id,
-      name: input.name,
-      url: config.sourceUrl,
-      frequencyMin: input.frequencyMin,
-      alertOnDrop: input.alertOnDrop,
-      alertEnabled: input.alertEnabled,
-      targetPrice: input.targetPrice ?? null,
-      status: 'active',
-    },
-    include: INCLUDE_RELATIONS,
-  });
-
-  // 5. Programar el job repetible en BullMQ
-  try {
-    await scheduleMonitor(monitor);
-  } catch (err) {
-    console.error('❌ Error programando monitor en BullMQ:', err);
-    // No lanzamos error: el monitor está creado en BD.
-    // Se puede reprogramar después.
-  }
-
   return toMonitorDto(monitor);
+}
+
+function areUrlsCompatible(productUrl: string, configUrl: string): boolean {
+  try {
+    const product = new URL(productUrl);
+    const config = new URL(configUrl);
+    if (
+      !['http:', 'https:'].includes(product.protocol) ||
+      !['http:', 'https:'].includes(config.protocol)
+    ) {
+      return false;
+    }
+
+    const productHost = product.hostname.toLowerCase();
+    const configHost = config.hostname.toLowerCase();
+    return (
+      productHost === configHost ||
+      productHost.endsWith(`.${configHost}`) ||
+      configHost.endsWith(`.${productHost}`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -246,7 +342,7 @@ export async function updateMonitor(
     throw new NotFoundError('Monitor no encontrado');
   }
 
-  const oldFrequency = existing.frequencyMin as 'm5' | 'm15' | 'm30';
+  const oldFrequency = existing.frequencyMin as 'm5' | 'm10' | 'm15' | 'm30';
   const oldStatus = existing.status;
 
   // 1. Actualizar en BD
@@ -290,6 +386,14 @@ export async function updateMonitor(
     }
   } catch (err) {
     console.error('❌ Error sincronizando monitor con BullMQ:', err);
+    await prisma.monitor.update({
+      where: { id: monitorId },
+      data: { status: 'error' },
+    });
+    throw new AppError(
+      'No se pudo actualizar la programación del seguimiento. Inténtalo de nuevo.',
+      503
+    );
   }
 
   return toMonitorDto(updated);

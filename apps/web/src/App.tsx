@@ -12,6 +12,8 @@ import BuilderPage from './pages/BuilderPage';
 import ConfigsPage from './pages/ConfigsPage';
 import ConfigDetailPage from './pages/ConfigDetailPage';
 import ProfilePage from './pages/ProfilePage';
+import ProductSavedPage from './pages/ProductSavedPage';
+import OfferDetailPage from './pages/OfferDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -24,11 +26,13 @@ export default function App() {
 
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/offers/:id" element={<OfferDetailPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/monitors" element={<MonitorsPage />} />
           <Route path="/builder" element={<BuilderPage />} />
+          <Route path="/products/:id" element={<ProductSavedPage />} />
           <Route path="/configs" element={<ConfigsPage />} />
           <Route path="/configs/:id" element={<ConfigDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />

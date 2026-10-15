@@ -5,8 +5,9 @@ import { scrapeQueue } from './scrapeQueue.js';
 /**
  * Mapea el enum Frequency de Prisma a milisegundos.
  */
-const FREQUENCY_MS: Record<'m5' | 'm15' | 'm30', number> = {
+const FREQUENCY_MS: Record<'m5' | 'm10' | 'm15' | 'm30', number> = {
   m5: 5 * 60 * 1000,
+  m10: 10 * 60 * 1000,
   m15: 15 * 60 * 1000,
   m30: 30 * 60 * 1000,
 };
@@ -18,7 +19,7 @@ const FREQUENCY_MS: Record<'m5' | 'm15' | 'm30', number> = {
  */
 function buildRepeatJobId(
   monitorId: string,
-  frequencyMin: 'm5' | 'm15' | 'm30'
+  frequencyMin: 'm5' | 'm10' | 'm15' | 'm30'
 ): string {
   return `monitor-${monitorId}-${frequencyMin}`;
 }
@@ -28,14 +29,16 @@ function buildRepeatJobId(
  */
 const JOB_NAME = 'scrape-monitor';
 
+type ScheduledMonitor = Pick<Monitor, 'id' | 'userId' | 'frequencyMin'>;
+
 /**
  * Programa (o re-programa) un job repetible para un monitor.
  *
  * - Si ya existe un job con el mismo jobId, BullMQ lo actualiza.
  * - La frecuencia se toma de monitor.frequencyMin.
  */
-export async function scheduleMonitor(monitor: Monitor): Promise<void> {
-  const frequency = monitor.frequencyMin as 'm5' | 'm15' | 'm30';
+export async function scheduleMonitor(monitor: ScheduledMonitor): Promise<void> {
+  const frequency = monitor.frequencyMin as 'm5' | 'm10' | 'm15' | 'm30';
   const every = FREQUENCY_MS[frequency];
   const jobId = buildRepeatJobId(monitor.id, frequency);
 
@@ -63,8 +66,8 @@ export async function scheduleMonitor(monitor: Monitor): Promise<void> {
  * Necesita la frecuencia actual porque BullMQ la usa como parte
  * de la clave del job.
  */
-export async function unscheduleMonitor(monitor: Monitor): Promise<void> {
-  const frequency = monitor.frequencyMin as 'm5' | 'm15' | 'm30';
+export async function unscheduleMonitor(monitor: ScheduledMonitor): Promise<void> {
+  const frequency = monitor.frequencyMin as 'm5' | 'm10' | 'm15' | 'm30';
 
   const removed = await scrapeQueue.removeRepeatable(JOB_NAME, {
     every: FREQUENCY_MS[frequency],
@@ -89,10 +92,10 @@ export async function unscheduleMonitor(monitor: Monitor): Promise<void> {
  * @param oldFrequency La frecuencia que tenia antes en la BD
  */
 export async function rescheduleMonitor(
-  monitor: Monitor,
-  oldFrequency: 'm5' | 'm15' | 'm30'
+  monitor: ScheduledMonitor,
+  oldFrequency: 'm5' | 'm10' | 'm15' | 'm30'
 ): Promise<void> {
-  const newFrequency = monitor.frequencyMin as 'm5' | 'm15' | 'm30';
+  const newFrequency = monitor.frequencyMin as 'm5' | 'm10' | 'm15' | 'm30';
 
   if (oldFrequency === newFrequency) {
     console.log(

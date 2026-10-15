@@ -5,7 +5,7 @@ export default function MonitorsPage() {
         Mis productos monitoreados
       </h1>
       <p className="text-silver-500">
-        Lista de productos que el usuario sigue con su precio actual.
+        Lista de productos que el usuario sigue con su precio actual. Los productos guardados sin un seguimiento real no aparecen aquí.
       </p>
     </div>
   );

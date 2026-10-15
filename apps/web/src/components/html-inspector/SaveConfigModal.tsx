@@ -73,7 +73,7 @@ export default function SaveConfigModal({
               required
               autoFocus
               disabled={isSaving}
-              className="w-full mt-1.5 px-3 py-2 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all disabled:opacity-60"
+              className="w-full mt-1.5 px-3 py-2 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all disabled:opacity-60"
             />
             <p className="text-xs text-on-surface-variant mt-1.5">
               Se guardará con los {name ? 'campos configurados actualmente' : 'campos actuales'}.

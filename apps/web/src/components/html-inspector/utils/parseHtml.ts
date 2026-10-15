@@ -11,6 +11,8 @@ export type HtmlNode = {
   attributes: Record<string, string>;
   /** Texto directo del nodo (truncado) */
   textPreview: string;
+  /** Texto directo completo, usado para búsquedas sin truncar resultados */
+  searchText: string;
   /** Hijos */
   children: HtmlNode[];
   /** Elemento DOM original (referencia, no serializable) */
@@ -21,7 +23,6 @@ const MAX_TEXT_PREVIEW = 100;
 const SKIP_TAGS = new Set([
   'script',
   'style',
-  'meta',
   'link',
   'noscript',
   'template',
@@ -46,16 +47,17 @@ export function parseHtml(html: string): HtmlNode | null {
     const tag = element.tagName.toLowerCase();
 
     // Texto directo (solo nodos de texto hijos, no de descendientes)
-    let textPreview = '';
+    let searchText = '';
     for (const child of Array.from(element.childNodes)) {
       if (child.nodeType === Node.TEXT_NODE) {
         const text = (child.textContent || '').trim();
         if (text) {
-          textPreview += text + ' ';
+          searchText += text + ' ';
         }
       }
     }
-    textPreview = textPreview.trim().slice(0, MAX_TEXT_PREVIEW);
+    searchText = searchText.trim();
+    const textPreview = searchText.slice(0, MAX_TEXT_PREVIEW);
 
     // Atributos
     const attributes: Record<string, string> = {};
@@ -86,6 +88,7 @@ export function parseHtml(html: string): HtmlNode | null {
       classes,
       attributes,
       textPreview,
+      searchText,
       children,
       element,
     };

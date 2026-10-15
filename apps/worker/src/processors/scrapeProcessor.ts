@@ -1,7 +1,9 @@
 import {
+  detectAutomaticPrice,
   extractFields,
   parsePrice,
   scrape,
+  SharedBadRequestError,
   type ExtractFieldInput,
 } from '@price-tracker/shared/scraper';
 import type { Job } from 'bullmq';
@@ -12,8 +14,9 @@ import type { ScrapeJobData, ScrapeJobResult } from '../queues/types.js';
 /**
  * Mapea el enum Frequency de Prisma a milisegundos.
  */
-const FREQUENCY_MS: Record<'m5' | 'm15' | 'm30', number> = {
+const FREQUENCY_MS: Record<'m5' | 'm10' | 'm15' | 'm30', number> = {
   m5: 5 * 60 * 1000,
+  m10: 10 * 60 * 1000,
   m15: 15 * 60 * 1000,
   m30: 30 * 60 * 1000,
 };
@@ -69,13 +72,6 @@ export async function processScrapeJob(
     };
   }
 
-  const fields = monitor.config.fields;
-
-  if (fields.length === 0) {
-    console.error(`❌ Config ${monitor.configId} sin fields`);
-    throw new Error('Config has no fields');
-  }
-
   // ─────────────────────────────────────────────────────────
   // 2. Crear ScrapeRun en estado inicial
   // ─────────────────────────────────────────────────────────
@@ -101,6 +97,10 @@ export async function processScrapeJob(
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     console.error(`❌ Scrape fallo: ${errorMessage}`);
+    const shouldRetry =
+      err instanceof SharedBadRequestError &&
+      err.retryable &&
+      job.attemptsMade + 1 < (job.opts.attempts ?? 1);
 
     await prisma.scrapeRun.update({
       where: { id: run.id },
@@ -115,10 +115,14 @@ export async function processScrapeJob(
     await prisma.monitor.update({
       where: { id: monitorId },
       data: {
-        status: 'error',
+        ...(shouldRetry ? {} : { status: 'error' as const }),
         lastRunAt: new Date(),
       },
     });
+
+    if (err instanceof SharedBadRequestError && err.retryable) {
+      throw err;
+    }
 
     return {
       monitorId,
@@ -131,17 +135,54 @@ export async function processScrapeJob(
   // ─────────────────────────────────────────────────────────
   // 4. Extraer los fields
   // ─────────────────────────────────────────────────────────
-  const extractInput: ExtractFieldInput[] = fields.map((f) => ({
-    label: f.label,
-    selector: f.selector,
-    attribute: f.attribute,
-    type: f.type as ExtractFieldInput['type'],
-  }));
+  const fields = monitor.config?.fields ?? [];
+  let values: Record<string, string | null>;
+  let fieldErrors: Array<{ label: string; error: string }>;
+  let priceNumber: number | null;
 
-  const { values, fieldErrors } = extractFields(
-    scrapeResult.html,
-    extractInput
-  );
+  if (monitor.extractionMode === 'automatic') {
+    const detectedPrice = detectAutomaticPrice(scrapeResult.html);
+    values = { Precio: detectedPrice?.value ?? null };
+    fieldErrors = detectedPrice
+      ? []
+      : [{ label: 'Precio', error: 'No se detectó un precio válido automáticamente' }];
+    priceNumber = detectedPrice?.price ?? null;
+  } else {
+    if (!monitor.config || fields.length === 0) {
+      const errorMessage = 'El seguimiento manual no tiene una configuración válida';
+      await prisma.scrapeRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'error',
+          errorMessage,
+          durationMs: Date.now() - startTime,
+          finishedAt: new Date(),
+        },
+      });
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { status: 'error', lastRunAt: new Date() },
+      });
+      return {
+        monitorId,
+        status: 'error',
+        durationMs: Date.now() - startTime,
+        errorMessage,
+      };
+    }
+
+    const extractInput: ExtractFieldInput[] = fields.map((field) => ({
+      label: field.label,
+      selector: field.selector,
+      attribute: field.attribute,
+      type: field.type as ExtractFieldInput['type'],
+    }));
+    const extraction = extractFields(scrapeResult.html, extractInput);
+    values = extraction.values;
+    fieldErrors = extraction.fieldErrors;
+    const priceField = fields.find((field) => field.type === 'price');
+    priceNumber = priceField ? parsePrice(values[priceField.label]) : null;
+  }
 
   console.log(`📊 Valores extraidos:`, values);
 
@@ -149,58 +190,34 @@ export async function processScrapeJob(
     console.warn(`⚠️ Errores de extraccion:`, fieldErrors);
   }
 
-  // ─────────────────────────────────────────────────────────
-  // 5. Encontrar el precio
-  // ─────────────────────────────────────────────────────────
-  // Buscamos el field con type='price', o el label "Precio".
-  const priceField = fields.find((f) => f.type === 'price');
-
-  if (!priceField) {
-    const errorMessage = 'Config no tiene field de tipo "price"';
-
-    await prisma.scrapeRun.update({
-      where: { id: run.id },
-      data: {
-        status: 'error',
-        errorMessage,
-        durationMs: Date.now() - startTime,
-        finishedAt: new Date(),
-        rawSnapshot: { values, fieldErrors },
-      },
-    });
-
-    console.error(`❌ ${errorMessage}`);
-
-    return {
-      monitorId,
-      status: 'error',
-      durationMs: Date.now() - startTime,
-      errorMessage,
-    };
-  }
-
-  const priceRaw = values[priceField.label];
-  const priceNumber = parsePrice(priceRaw);
-
   if (priceNumber === null) {
-    const errorMessage = `No se pudo parsear el precio: "${priceRaw}"`;
+    const errorMessage =
+      monitor.extractionMode === 'automatic'
+        ? 'No se detectó un precio válido automáticamente'
+        : 'No se pudo extraer o parsear el precio configurado';
 
     await prisma.scrapeRun.update({
       where: { id: run.id },
       data: {
-        status: 'partial',
+        status: monitor.extractionMode === 'automatic' ? 'error' : 'partial',
         errorMessage,
         durationMs: Date.now() - startTime,
         finishedAt: new Date(),
         rawSnapshot: { values, fieldErrors },
       },
     });
+    if (monitor.extractionMode === 'automatic') {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { status: 'error', lastRunAt: new Date() },
+      });
+    }
 
     console.error(`❌ ${errorMessage}`);
 
     return {
       monitorId,
-      status: 'partial',
+      status: monitor.extractionMode === 'automatic' ? 'error' : 'partial',
       durationMs: Date.now() - startTime,
       errorMessage,
     };
@@ -225,7 +242,18 @@ export async function processScrapeJob(
     },
   });
 
+    await prisma.offer.updateMany({
+    where: {
+      productId: monitor.productId,
+      userId: monitor.userId,
+    },
+    data: {
+      price: priceNumber,
+    },
+  });
+
   console.log(`💾 PriceHistory guardado: ${priceNumber}`);
+
 
   // ─────────────────────────────────────────────────────────
   // 7. Actualizar Monitor y ScrapeRun

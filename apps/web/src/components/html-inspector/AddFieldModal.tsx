@@ -125,7 +125,7 @@ export default function AddFieldModal({
               placeholder="ej. Precio, Nombre, Marca"
               required
               autoFocus
-              className="w-full mt-1.5 px-3 py-2 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all"
+              className="w-full mt-1.5 px-3 py-2 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all"
             />
           </div>
 
@@ -164,7 +164,7 @@ export default function AddFieldModal({
               value={attribute}
               onChange={(e) => setAttribute(e.target.value)}
               placeholder="ej. src, href, data-price (vacío = texto)"
-              className="w-full mt-1.5 px-3 py-2 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all"
+              className="w-full mt-1.5 px-3 py-2 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all"
             />
             <p className="text-xs text-on-surface-variant mt-1">
               Si se deja vacío, se extrae el texto del elemento.

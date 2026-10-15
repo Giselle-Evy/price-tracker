@@ -11,17 +11,28 @@ import {
 
 import type { FieldType } from './AddFieldModal';
 
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 export type ExtractField = {
   id: string;
   label: string;
   selector: string;
   attribute?: string;
   type: FieldType;
+  transform?: JsonValue | null;
+  isPrimary?: boolean;
 };
 
 type Props = {
   fields: ExtractField[];
   onRemove: (id: string) => void;
+  onUpdateSelector: (id: string, selector: string) => void;
   onTest: () => void;
   onSaveConfig: () => void;
   canTest: boolean;
@@ -37,6 +48,7 @@ const TYPE_ICONS: Record<FieldType, React.ReactNode> = {
 export default function FieldsPanel({
   fields,
   onRemove,
+  onUpdateSelector,
   onTest,
   onSaveConfig,
   canTest,
@@ -64,7 +76,7 @@ export default function FieldsPanel({
               className="flex items-center gap-1.5 text-xs font-medium text-secondary hover:text-on-surface transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <FlaskConical className="w-3.5 h-3.5" />
-              Probar
+              Probar selectores
             </button>
             <button
               onClick={onSaveConfig}
@@ -109,10 +121,13 @@ export default function FieldsPanel({
                     · {field.type}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <code className="text-xs font-mono text-on-surface-variant truncate">
-                    {field.selector}
-                  </code>
+                <div className="flex min-w-0 items-center gap-2 mt-0.5">
+                    <input
+                      aria-label={`Selector CSS de ${field.label}`}
+                      value={field.selector}
+                      onChange={(event) => onUpdateSelector(field.id, event.target.value)}
+                      className="min-w-0 flex-1 rounded border border-outline-variant bg-surface-container-lowest px-2 py-1 text-xs font-mono text-on-surface-variant focus:border-primary focus:outline-none"
+                    />
                   {field.attribute && (
                     <span className="text-xs text-secondary">
                       @{field.attribute}

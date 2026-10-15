@@ -64,7 +64,7 @@ export default function LoginPage() {
                 placeholder="tu.correo@empresa.com"
                 required
                 disabled={isLoading}
-                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg focus:outline-none focus:bg-surface-container-lowest focus:shadow-md transition-all disabled:opacity-60"
+                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:bg-surface-container-lowest focus:shadow-md transition-all disabled:opacity-60"
               />
             </div>
           </div>
@@ -84,7 +84,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 required
                 disabled={isLoading}
-                className="w-full pl-10 pr-11 py-2.5 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg focus:outline-none focus:bg-surface-container-lowest focus:shadow-md transition-all disabled:opacity-60"
+                className="w-full pl-10 pr-11 py-2.5 bg-surface-container-low text-on-surface placeholder:text-outline text-sm rounded-lg border border-outline-variant focus:bg-surface-container-lowest focus:shadow-md transition-all disabled:opacity-60"
               />
               <button
                 type="button"

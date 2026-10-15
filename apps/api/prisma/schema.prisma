@@ -39,6 +39,10 @@ model Product {
   id           String   @id @default(uuid()) @db.Char(36)
   name         String   @db.VarChar(500)
   imageUrl     String?  @map("image_url") @db.Text
+  description  String?  @db.Text
+  currentPrice Decimal? @map("current_price") @db.Decimal(12, 2)
+  previousPrice Decimal? @map("previous_price") @db.Decimal(12, 2)
+  images       Json?
   canonicalUrl String   @unique @map("canonical_url") @db.VarChar(768)
   originalUrl  String   @map("original_url") @db.Text
   domain       String   @db.VarChar(255)
@@ -152,7 +156,8 @@ model Monitor {
   id             String   @id @default(uuid()) @db.Char(36)
   userId         String   @map("user_id") @db.Char(36)
   productId      String   @map("product_id") @db.Char(36)
-  configId       String   @map("config_id") @db.Char(36)
+  configId       String?  @map("config_id") @db.Char(36)
+  extractionMode MonitorExtractionMode @default(manual) @map("extraction_mode")
   name           String   @db.VarChar(255)
   url            String   @db.Text
   imageUrl       String?  @map("image_url") @db.Text
@@ -160,6 +165,7 @@ model Monitor {
   currentPrice   Decimal? @map("current_price") @db.Decimal(12, 2)
   previousPrice  Decimal? @map("previous_price") @db.Decimal(12, 2)
   targetPrice    Decimal? @map("target_price") @db.Decimal(12, 2)
+  durationDays  Int?     @map("duration_days")
   status         MonitorStatus @default(pending)
   frequencyMin   Frequency     @default(m30) @map("frequency_min")
   alertOnDrop    Boolean  @default(true) @map("alert_on_drop")
@@ -172,7 +178,7 @@ model Monitor {
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  config        ScrapeConfig   @relation(fields: [configId], references: [id])
+  config        ScrapeConfig?  @relation(fields: [configId], references: [id], onDelete: Restrict)
   runs          ScrapeRun[]
   priceHistory  PriceHistory[]
   notifications Notification[]
@@ -180,6 +186,7 @@ model Monitor {
   @@index([userId, status])
   @@index([productId])
   @@index([nextRunAt])
+  @@unique([userId, productId, configId])
   @@map("monitors")
 }
 
@@ -190,8 +197,14 @@ enum MonitorStatus {
   pending
 }
 
+enum MonitorExtractionMode {
+  manual
+  automatic
+}
+
 enum Frequency {
   m5
+  m10
   m15
   m30
 }

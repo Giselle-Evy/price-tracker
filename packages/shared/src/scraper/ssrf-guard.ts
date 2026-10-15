@@ -7,10 +7,17 @@ import ipaddr from 'ipaddr.js';
  */
 export class SharedBadRequestError extends Error {
   public readonly statusCode: number;
-  constructor(message: string, statusCode = 400) {
+  public readonly retryable: boolean;
+
+  constructor(
+    message: string,
+    statusCode = 400,
+    options: { retryable?: boolean } = {}
+  ) {
     super(message);
     this.name = 'SharedBadRequestError';
     this.statusCode = statusCode;
+    this.retryable = options.retryable ?? false;
   }
 }
 
@@ -22,6 +29,62 @@ const FORBIDDEN_HOSTNAMES = new Set([
   'metadata.aws.internal',
   'instance-data',
 ]);
+
+const DNS_LOOKUP_RETRIES = 2;
+const DNS_RETRY_DELAY_MS = 100;
+const TRANSIENT_DNS_ERROR_CODES = new Set([
+  'EAI_AGAIN',
+  'ESERVFAIL',
+  'ETIMEOUT',
+]);
+const RETRYABLE_DNS_ERROR_CODES = new Set([
+  ...TRANSIENT_DNS_ERROR_CODES,
+  'ENODATA',
+  'ENOTFOUND',
+]);
+
+function getDnsErrorCode(error: unknown): string | undefined {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+  ) {
+    return error.code;
+  }
+  return undefined;
+}
+
+async function lookupHostname(hostname: string): Promise<string[]> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const records = await dns.lookup(hostname, { all: true });
+      return records.map((record) => record.address);
+    } catch (error) {
+      const code = getDnsErrorCode(error);
+      const canRetry =
+        code !== undefined &&
+        RETRYABLE_DNS_ERROR_CODES.has(code) &&
+        attempt < DNS_LOOKUP_RETRIES;
+
+      if (canRetry) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, DNS_RETRY_DELAY_MS * (attempt + 1))
+        );
+        continue;
+      }
+
+      const isTransient =
+        code !== undefined && TRANSIENT_DNS_ERROR_CODES.has(code);
+      const codeDetail = code ? ` (${code})` : '';
+      throw new SharedBadRequestError(
+        `No se pudo resolver el dominio "${hostname}"${codeDetail}`,
+        isTransient || !code ? 502 : 400,
+        { retryable: isTransient }
+      );
+    }
+  }
+}
 
 export function isForbiddenIp(ip: string): boolean {
   try {
@@ -52,7 +115,7 @@ export async function assertSafeUrl(rawUrl: string): Promise<URL> {
     );
   }
 
-  const hostname = url.hostname.toLowerCase();
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (FORBIDDEN_HOSTNAMES.has(hostname)) {
     throw new SharedBadRequestError('Hostname no permitido');
   }
@@ -64,13 +127,7 @@ export async function assertSafeUrl(rawUrl: string): Promise<URL> {
     return url;
   }
 
-  let addresses: string[];
-  try {
-    const records = await dns.lookup(hostname, { all: true });
-    addresses = records.map((r) => r.address);
-  } catch {
-    throw new SharedBadRequestError('No se pudo resolver el dominio');
-  }
+  const addresses = await lookupHostname(hostname);
 
   if (addresses.length === 0) {
     throw new SharedBadRequestError('El dominio no resuelve a ninguna IP');

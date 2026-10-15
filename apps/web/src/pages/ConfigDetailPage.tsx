@@ -218,7 +218,7 @@ export default function ConfigDetailPage() {
                   if (e.key === 'Enter') handleSaveName();
                   if (e.key === 'Escape') handleCancelEditName();
                 }}
-                className="text-3xl font-bold text-on-surface bg-surface-container-lowest border border-primary-container rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary-container/20 max-w-xl"
+                className="text-3xl font-bold text-on-surface bg-surface-container-lowest border border-primary-container rounded-lg px-3 py-1 focus:ring-2 focus:ring-primary-container/20 max-w-xl"
               />
               <button
                 onClick={handleSaveName}

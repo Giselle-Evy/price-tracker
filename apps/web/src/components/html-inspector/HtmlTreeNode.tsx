@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import type { HtmlNode } from './utils/parseHtml';
@@ -6,6 +6,8 @@ import type { HtmlNode } from './utils/parseHtml';
 type Props = {
   node: HtmlNode;
   selectedId: string | null;
+  highlightedId: string | null;
+  expandedIds: Set<string>;
   onSelect: (node: HtmlNode) => void;
   depth: number;
 };
@@ -15,24 +17,39 @@ const MAX_INDENT_DEPTH = 8;
 export default function HtmlTreeNode({
   node,
   selectedId,
+  highlightedId,
+  expandedIds,
   onSelect,
   depth,
 }: Props) {
   const [open, setOpen] = useState(depth < 3);
+  const rowRef = useRef<HTMLDivElement>(null);
   const hasChildren = node.children.length > 0;
   const isSelected = selectedId === node.nodeId;
+  const isHighlighted = highlightedId === node.nodeId;
+  const isExpandedForSearch = expandedIds.has(node.nodeId);
+  const isOpen = open || isExpandedForSearch;
 
   // Clases visuales para el nombre del tag
   const tagColor = getTagColor(node.tag);
+
+  useEffect(() => {
+    if (isHighlighted) {
+      rowRef.current?.scrollIntoView?.({ block: 'nearest' });
+    }
+  }, [isHighlighted]);
 
   return (
     <div>
       {/* Fila del nodo */}
       <div
+        ref={rowRef}
         className={`flex items-center gap-1 py-1 px-2 rounded cursor-pointer text-xs font-mono transition-colors ${
-          isSelected
-            ? 'bg-primary-container text-on-primary-container'
-            : 'hover:bg-surface-container-low'
+          isHighlighted
+            ? 'bg-amber-400/20 text-on-surface ring-1 ring-inset ring-amber-400'
+            : isSelected
+              ? 'bg-primary-container text-on-primary-container'
+              : 'hover:bg-surface-container-low'
         }`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         onClick={() => onSelect(node)}
@@ -42,11 +59,11 @@ export default function HtmlTreeNode({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setOpen(!open);
+              if (!isExpandedForSearch) setOpen(!open);
             }}
             className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-secondary hover:text-on-surface"
           >
-            {open ? (
+            {isOpen ? (
               <ChevronDown className="w-3 h-3" />
             ) : (
               <ChevronRight className="w-3 h-3" />
@@ -84,13 +101,15 @@ export default function HtmlTreeNode({
       </div>
 
       {/* Hijos */}
-      {open && hasChildren && (
+      {isOpen && hasChildren && (
         <div>
           {node.children.map((child) => (
             <HtmlTreeNode
               key={child.nodeId}
               node={child}
               selectedId={selectedId}
+              highlightedId={highlightedId}
+              expandedIds={expandedIds}
               onSelect={onSelect}
               depth={Math.min(depth + 1, MAX_INDENT_DEPTH)}
             />

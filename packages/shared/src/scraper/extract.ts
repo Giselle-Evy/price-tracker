@@ -1,5 +1,55 @@
 import * as cheerio from 'cheerio';
 
+const AUTOMATIC_PRICE_CANDIDATES: Array<{
+  selector: string;
+  attribute?: string;
+}> = [
+  { selector: '[itemprop="price"]', attribute: 'content' },
+  { selector: 'meta[property="product:price:amount"]', attribute: 'content' },
+  { selector: 'meta[property="og:price:amount"]', attribute: 'content' },
+  { selector: '[class*="sale-price"]' },
+  { selector: '[class*="current-price"]' },
+  { selector: '[class*="price"]' },
+];
+
+export type AutomaticPrice = {
+  selector: string;
+  attribute: string | null;
+  value: string;
+  price: number;
+};
+
+function looksLikePrice(value: string): boolean {
+  return /\d/.test(value) && /[$€£¥₹]|\b(?:USD|MXN|EUR|GBP|precio)\b|^\s*\d[\d.,\s]*\s*$|,\d{2}\s*$|\.\d{2}\s*$/.test(value);
+}
+
+export function detectAutomaticPrice(html: string): AutomaticPrice | null {
+  const $ = cheerio.load(html);
+
+  for (const candidate of AUTOMATIC_PRICE_CANDIDATES) {
+    const element = $(candidate.selector).first();
+    if (!element.length) continue;
+
+    const raw = candidate.attribute
+      ? element.attr(candidate.attribute)
+      : element.text();
+    const value = raw?.replace(/\s+/g, ' ').trim();
+    if (!value || !looksLikePrice(value)) continue;
+
+    const price = parsePrice(value);
+    if (price === null || !Number.isFinite(price) || price <= 0) continue;
+
+    return {
+      selector: candidate.selector,
+      attribute: candidate.attribute ?? null,
+      value,
+      price,
+    };
+  }
+
+  return null;
+}
+
 export type ExtractFieldInput = {
   label: string;
   selector: string;

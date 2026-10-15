@@ -1,5 +1,7 @@
+
 import { prisma } from '../../lib/prisma.js';
-import { NotFoundError } from '../../lib/errors.js';
+import { ConflictError, NotFoundError } from '../../lib/errors.js';
+import { Prisma } from '@prisma/client';
 import type { CreateConfigInput, UpdateConfigInput } from './configs.schemas.js';
 
 // ─────────────────────────────────────────────────────────────
@@ -12,6 +14,7 @@ export type ConfigFieldDto = {
   selector: string;
   attribute: string | null;
   type: 'text' | 'price' | 'image' | 'url';
+  transform: Prisma.JsonValue;
   isPrimary: boolean;
   orderIndex: number;
 };
@@ -64,6 +67,10 @@ export async function createConfig(
           selector: field.selector,
           attribute: field.attribute ?? null,
           type: field.type,
+          ...(field.transform !== undefined && {
+            transform:
+              field.transform === null ? Prisma.DbNull : field.transform,
+          }),
           isPrimary: field.isPrimary ?? false,
           orderIndex: field.orderIndex ?? index,
         })),
@@ -147,6 +154,10 @@ export async function updateConfig(
     data: {
       ...(input.name !== undefined && { name: input.name }),
       ...(input.status !== undefined && { status: input.status }),
+      ...(input.sourceUrl !== undefined && {
+        sourceUrl: input.sourceUrl,
+        sourceDomain: extractDomain(input.sourceUrl),
+      }),
       ...(input.fields !== undefined && {
         fields: {
           deleteMany: {},
@@ -155,6 +166,10 @@ export async function updateConfig(
             selector: field.selector,
             attribute: field.attribute ?? null,
             type: field.type,
+            ...(field.transform !== undefined && {
+              transform:
+                field.transform === null ? Prisma.DbNull : field.transform,
+            }),
             isPrimary: field.isPrimary ?? false,
             orderIndex: field.orderIndex ?? index,
           })),
@@ -180,21 +195,92 @@ export async function deleteConfig(
   configId: string
 ): Promise<void> {
   const existing = await prisma.scrapeConfig.findFirst({
-    where: { id: configId, userId },
-    select: { id: true },
+    where: {
+      id: configId,
+      userId,
+    },
+    select: {
+      id: true,
+    },
   });
 
   if (!existing) {
     throw new NotFoundError('Configuración no encontrada');
   }
 
-  await prisma.scrapeConfig.delete({
-    where: { id: configId },
+  // Buscar únicamente los seguimientos propios de esta configuración.
+  const monitors = await prisma.monitor.findMany({
+    where: {
+      configId,
+      userId,
+    },
+    select: {
+      productId: true,
+    },
   });
+
+  const productIds = [
+    ...new Set(monitors.map((monitor) => monitor.productId)),
+  ];
+
+  // Las ofertas publicadas por este usuario para esos productos
+  // impiden eliminar la configuración.
+  if (productIds.length > 0) {
+    const publishedOffer = await prisma.offer.findFirst({
+      where: {
+        userId,
+        productId: {
+          in: productIds,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (publishedOffer) {
+      throw new ConflictError(
+        'No puedes eliminar esta configuración porque uno de tus productos publicados todavía la utiliza. Elimina primero esa publicación.'
+      );
+    }
+  }
+
+  // Desvincular los seguimientos antiguos y eliminar la configuración
+  // dentro de una transacción para evitar cambios parciales.
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.monitor.updateMany({
+        where: {
+          configId,
+          userId,
+        },
+        data: {
+          configId: null,
+        },
+      });
+
+      await tx.scrapeConfig.delete({
+        where: {
+          id: configId,
+        },
+      });
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2003'
+    ) {
+      throw new ConflictError(
+        'No se puede eliminar esta configuración porque todavía tiene registros asociados. No se realizaron los cambios.'
+      );
+    }
+
+    throw error;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
-// DTO CONVERTER (usa tipos inferidos de Prisma)
+// DTO CONVERTER
 // ─────────────────────────────────────────────────────────────
 
 function toConfigDto(config: {
@@ -212,6 +298,7 @@ function toConfigDto(config: {
     selector: string;
     attribute: string | null;
     type: string;
+    transform: Prisma.JsonValue;
     isPrimary: boolean;
     orderIndex: number;
   }>;
@@ -225,14 +312,15 @@ function toConfigDto(config: {
     status: config.status as ConfigDto['status'],
     createdAt: config.createdAt,
     updatedAt: config.updatedAt,
-    fields: config.fields.map((f) => ({
-      id: f.id,
-      label: f.label,
-      selector: f.selector,
-      attribute: f.attribute,
-      type: f.type as ConfigFieldDto['type'],
-      isPrimary: f.isPrimary,
-      orderIndex: f.orderIndex,
+    fields: config.fields.map((field) => ({
+      id: field.id,
+      label: field.label,
+      selector: field.selector,
+      attribute: field.attribute,
+      type: field.type as ConfigFieldDto['type'],
+      transform: field.transform,
+      isPrimary: field.isPrimary,
+      orderIndex: field.orderIndex,
     })),
   };
 }

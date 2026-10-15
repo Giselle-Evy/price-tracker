@@ -220,6 +220,16 @@ export const api = {
       token
     ),
 
+  put: <T>(endpoint: string, body: unknown, token?: string | null) =>
+    request<T>(
+      endpoint,
+      {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      },
+      token
+    ),
+
   patch: <T>(endpoint: string, body: unknown, token?: string | null) =>
     request<T>(
       endpoint,

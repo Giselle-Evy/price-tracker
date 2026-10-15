@@ -33,7 +33,7 @@ type ConfigDto = {
   status: 'draft' | 'active' | 'error' | 'archived';
   createdAt: string;
   updatedAt: string;
-  fields: ConfigFieldDto[];
+  fields?: ConfigFieldDto[] | null;
 };
 
 export default function ConfigsPage() {
@@ -235,7 +235,7 @@ function ConfigCard({
                 {config.sourceDomain}
               </span>
               <span>
-                {config.fields.length} campo{config.fields.length !== 1 && 's'}
+                {config.fields?.length ?? 0} campo{config.fields?.length !== 1 && 's'}
               </span>
             </div>
 

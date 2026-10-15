@@ -32,3 +32,16 @@ export function authenticate(
     next(error);
   }
 }
+
+export function authenticateOptional(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.headers.authorization) {
+    next();
+    return;
+  }
+
+  authenticate(req, res, next);
+}

@@ -2,6 +2,7 @@ import { type Request, type Response, type NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../lib/errors.js';
 import { env } from '../config/env.js';
+import { SharedBadRequestError } from '@price-tracker/shared/scraper';
 
 // Middleware de manejo de errores. Debe ser el último en registrarse.
 export function errorHandler(
@@ -25,6 +26,11 @@ export function errorHandler(
       error: err.message,
       ...(err instanceof Error && 'details' in err ? { details: (err as { details: unknown }).details } : {}),
     });
+    return;
+  }
+
+  if (err instanceof SharedBadRequestError) {
+    res.status(err.statusCode).json({ error: err.message });
     return;
   }
 

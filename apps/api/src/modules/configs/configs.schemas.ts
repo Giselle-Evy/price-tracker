@@ -4,6 +4,29 @@ import { z } from 'zod';
 // FIELD
 // ─────────────────────────────────────────────────────────────
 
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return true;
+  }
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (typeof value !== 'object') return false;
+
+  const prototype = Object.getPrototypeOf(value);
+  return (
+    (prototype === Object.prototype || prototype === null) &&
+    Object.values(value).every(isJsonValue)
+  );
+}
+
 const fieldSchema = z.object({
   label: z
     .string()
@@ -28,6 +51,8 @@ const fieldSchema = z.object({
   type: z.enum(['text', 'price', 'image', 'url'], {
     errorMap: () => ({ message: 'Tipo de campo inválido' }),
   }),
+
+  transform: z.custom<JsonValue>(isJsonValue).optional().nullable(),
 
   isPrimary: z.boolean().optional().default(false),
 
@@ -72,6 +97,13 @@ export const updateConfigSchema = z.object({
     .optional(),
 
   status: z.enum(['draft', 'active', 'error', 'archived']).optional(),
+
+  sourceUrl: z
+    .string()
+    .trim()
+    .url('La URL de origen no es válida')
+    .max(2048, 'La URL es demasiado larga')
+    .optional(),
 
   fields: z
     .array(fieldSchema)
