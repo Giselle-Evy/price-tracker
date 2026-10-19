@@ -18,8 +18,9 @@ export function createApp(): Application {
   app.use(helmet());
   app.use(
     cors({
+      
       origin: env.NODE_ENV === 'production'
-        ? ['https://price-tracker.vercel.app']
+        ? ['https://price-tracker-d6i8.onrender.com']
         : ['http://localhost:5173', 'http://localhost:3000'],
       credentials: true,
     })
