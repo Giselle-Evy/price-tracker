@@ -1,13 +1,20 @@
+
 {
   "name": "@price-tracker/shared",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./scraper": "./src/scraper/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./scraper": {
+      "types": "./dist/scraper/index.d.ts",
+      "import": "./dist/scraper/index.js"
+    }
   },
   "scripts": {
     "build": "tsc",
@@ -19,7 +26,6 @@
     "playwright": "^1.64.0"
   },
   "devDependencies": {
-    
     "@types/node": "^22.10.0",
     "typescript": "^5.7.2"
   }
